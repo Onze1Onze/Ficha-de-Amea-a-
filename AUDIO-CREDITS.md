@@ -16,14 +16,14 @@ O áudio de disparo é armazenado localmente no repositório e reproduzido sem r
 
 ## Estojo de cartucho caindo
 
-- Nome: **Shotgun Shell Bullet Casing 08**
-- Descrição: estojo vazio de espingarda caindo em piso de madeira, com impacto oco curto.
+- Nome: **Steel Floor Bullet Casing 06**
+- Descrição: estojo de latão quicando em uma superfície de aço, com um timbre metálico ressonante e pequenas batidas rápidas sucessivas.
 - Autor/provedor: **SFXMint**
-- Página de origem: https://sfxmint.com/sounds/bullet-casing-08
-- Arquivo MP3 utilizado: https://sfxmint.com/dl/bullet-casing-08.mp3
-- Duração aproximada: **0,95 segundo**
+- Página de origem: https://sfxmint.com/sounds/bullet-casing-06
+- Arquivo MP3 utilizado: https://sfxmint.com/dl/bullet-casing-06.mp3
+- Duração aproximada: **1,1 segundo**
 - Licença: **Creative Commons Zero 1.0 (CC0 1.0)**
 - Licença e condições: https://sfxmint.com/license
 - A SFXMint declara uso livre em jogos, aplicativos e projetos comerciais, sem atribuição obrigatória, e permite explicitamente hotlink do arquivo.
 
-O efeito do estojo é reproduzido diretamente da URL do provedor, sem cópia local. Portanto, a reprodução desse segundo efeito depende de conexão com a internet e da disponibilidade do endereço da SFXMint. A atribuição é mantida voluntariamente.
+O efeito do estojo é reproduzido diretamente da URL do provedor e pré-carregado ao iniciar o serviço da extensão. Portanto, a reprodução desse segundo efeito depende de conexão com a internet e da disponibilidade do endereço da SFXMint. A atribuição é mantida voluntariamente.
