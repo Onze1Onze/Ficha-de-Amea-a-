@@ -34,12 +34,9 @@ jobs:
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
       - name: Preparar artefato estático
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: .
-          name: pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          artifact_name: pages-${{ github.run_id }}-${{ github.run_attempt }}
