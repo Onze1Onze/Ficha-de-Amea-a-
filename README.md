@@ -23,6 +23,7 @@ O endereço depende da ativação do GitHub Pages para este repositório. O work
 - No instante da troca visual, a aparência do personagem na cena é substituída pela imagem escolhida na biblioteca.
 - 1.000 ms depois, o efeito sonoro local de tiro é reproduzido.
 - 450 ms depois do início do som do disparo (1.450 ms após a troca visual), o som de um estojo de latão quicando em uma superfície de aço é reproduzido, com um timbre metálico mais agudo e pequenas batidas ressonantes sucessivas (efeito “pim-pirim”). O som dura aproximadamente 1,1 segundo.
+- No instante da troca visual, o alvo recebe um impacto visual vermelho: flash inicial branco-avermelhado, pulsação vermelha e uma onda circular de choque, com duração total de 1.000 ms.
 - A aparência original é restaurada em 4.000 ms após a troca visual. O som do cartucho termina antes da restauração.
 
 A operação mantém o mesmo item e altera somente a URL e o MIME da imagem, além de uma chave namespaced em metadata. O alvo não é alterado. O token selecionado na biblioteca nunca é colocado na mesa, removido ou modificado.
@@ -32,13 +33,16 @@ A operação mantém o mesmo item e altera somente a URL e o MIME da imagem, al�
 - manifest.json: manifesto do Owlbear Rodeo.
 - index.html, style.css, src/main.js: painel compacto e seleção do token de animação pela API oficial OBR.assets.downloadImages.
 - background.html, src/background.js: controlador dos temporizadores, áudio, restauração e recuperação de marcadores pendentes.
-- src/shot-engine.js: regras de seleção, cronograma, validação, arbitragem e restauração segura.
+- src/shot-engine.js: regras de seleção, cronograma, janela do efeito de impacto, validação, arbitragem e restauração segura.
+- src/hit-effect.js: shader de impacto, flash vermelho e onda de choque anexados ao alvo; cada cliente cria um efeito local a partir do evento sincronizado, sem modificar o token atingido.
 - audio/shotgun-20-gauge.mp3: efeito sonoro local do disparo.
 - Efeito de estojo: Steel Floor Bullet Casing 06, MP3 CC0 reproduzido por hotlink direto a partir do navegador. O carregamento de mídia do navegador não consome a cota de downloads da SFXMint.
 - src/audio-player.js: criação e pré-carregamento dos reprodutores, espera por `canplay`, reinício seguro e controle de volume.
 - .github/workflows/pages.yml: validação e publicação estática no GitHub Pages.
 
-O projeto usa o SDK oficial @owlbear-rodeo/sdk na versão 3.1.0. Não há compilação de frontend: o GitHub Pages publica os arquivos estáticos, enquanto os efeitos são pré-carregados pelo navegador quando o serviço inicia.
+O projeto usa o SDK oficial @owlbear-rodeo/sdk na versão 3.1.0. Não há compilação de frontend: o GitHub Pages publica os arquivos estáticos, enquanto os efeitos sonoros são pré-carregados pelo navegador quando o serviço inicia.
+
+O efeito de impacto usa o item `EFFECT` experimental do Owlbear Rodeo e é criado na camada local de cada cliente. Ele se apaga após 1 segundo e não grava alterações no alvo ou na cena compartilhada.
 
 Para executar as verificações locais, use Node.js 20 ou superior, depois rode `npm run check` e `npm test`.
 
@@ -56,8 +60,8 @@ Se todos os clientes com a extensão forem fechados ou desconectados, a restaura
 
 Requer Node.js 20 ou superior. Não é necessário instalar dependências.
 
-- npm run check: sintaxe JavaScript, versão 1.0.1, manifesto, permissões, arquivos, URLs e configuração de publicação.
-- npm test: testes unitários de cronograma, seleção, recuperação, restauração, concorrência, preparação dos reprodutores, espera por carregamento, reinício de áudio, volume e falhas de reprodução.
+- npm run check: sintaxe JavaScript, versão 1.0.2, manifesto, permissões, arquivos, URLs, efeito de impacto e configuração de publicação.
+- npm test: testes unitários de cronograma, seleção, recuperação, restauração, concorrência, preparação dos reprodutores, reprodução de áudio, shader de impacto, anexação ao alvo e duração do efeito.
 
 Os testes automatizados não substituem um teste prático dentro de uma sala real do Owlbear Rodeo com múltiplos jogadores, permissões distintas e reprodução de áudio habilitada.
 

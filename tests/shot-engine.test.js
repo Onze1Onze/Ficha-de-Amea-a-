@@ -5,10 +5,12 @@ import {
   SHOT_DURATION_MS,
   SHOT_AFTER_SOUND_MS,
   CASING_SOUND_DELAY_MS,
+  TARGET_HIT_EFFECT_DURATION_MS,
   createShotTiming,
   createShotFromMarker,
   shouldScheduleShotSound,
   shouldScheduleCasingSound,
+  shouldShowTargetHitEffect,
   getCasingSoundAt,
   isValidShotSchedule,
   isUsableImage,
@@ -124,6 +126,7 @@ test("reconstrói horários persistidos a partir do marcador da cena", () => {
     metadata: {
       "extension/active-shot": {
         shotId: "persisted-shot",
+        targetId: "target",
         originalImage: { url: "https://assets.test/original.png", mime: "image/png" },
         temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
         startedAt: 10_000,
@@ -138,6 +141,7 @@ test("reconstrói horários persistidos a partir do marcador da cena", () => {
   assert.deepEqual(createShotFromMarker(current, "extension/active-shot", 20_000), {
     shotId: "persisted-shot",
     characterId: "character",
+    targetId: "target",
     markerKey: "extension/active-shot",
     temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
     startedAt: 10_000,
@@ -360,4 +364,42 @@ test("arbitragem é estável mesmo com timestamps ausentes ou inválidos", () =>
 
   assert.equal([...claims].sort(compareClaims)[0].shotId, "a");
   assert.equal(compareClaims(null, null), 0);
+});
+
+test("o efeito de impacto dura exatamente um segundo desde o início do disparo", () => {
+  const shot = validSchedule({ targetId: "target" });
+  assert.equal(TARGET_HIT_EFFECT_DURATION_MS, 1000);
+  assert.equal(shouldShowTargetHitEffect(shot, 1000), true);
+  assert.equal(shouldShowTargetHitEffect(shot, 1500), true);
+  assert.equal(shouldShowTargetHitEffect(shot, 1999), true);
+  assert.equal(shouldShowTargetHitEffect(shot, 2000), false);
+  assert.equal(shouldShowTargetHitEffect(shot, 999), false);
+});
+
+test("o efeito de impacto exige um alvo válido e horário dentro da janela", () => {
+  const shot = validSchedule({ targetId: "target" });
+  assert.equal(shouldShowTargetHitEffect({ ...shot, targetId: "" }, 1000), false);
+  assert.equal(shouldShowTargetHitEffect({ ...shot, targetId: undefined }, 1000), false);
+  assert.equal(shouldShowTargetHitEffect(shot, Number.NaN), false);
+  assert.equal(shouldShowTargetHitEffect(null, 1000), false);
+});
+
+test("marcadores legados sem targetId continuam recuperáveis sem gerar efeito no alvo", () => {
+  const current = {
+    ...image("character"),
+    metadata: {
+      "extension/active-shot": {
+        shotId: "legacy-targetless",
+        originalImage: { url: "https://assets.test/original.png", mime: "image/png" },
+        temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
+        startedAt: 10_000,
+        soundAt: 11_000,
+        casingAt: 11_450,
+        restoreAt: 14_000,
+      },
+    },
+  };
+  const recovered = createShotFromMarker(current, "extension/active-shot", 10_100);
+  assert.equal(recovered.targetId, undefined);
+  assert.equal(shouldShowTargetHitEffect(recovered, 10_100), false);
 });

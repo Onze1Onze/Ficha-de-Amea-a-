@@ -4,6 +4,7 @@ export const SHOT_DURATION_MS = 4000;
 export const SHOT_AFTER_SOUND_MS = SHOT_DURATION_MS - SHOT_SOUND_DELAY_MS;
 export const CLAIM_SETTLE_MS = 450;
 export const LEASE_TTL_MS = 8000;
+export const TARGET_HIT_EFFECT_DURATION_MS = 1000;
 
 export function createShotTiming(startedAt = Date.now()) {
   if (!Number.isFinite(startedAt) || startedAt < 0) {
@@ -158,6 +159,9 @@ export function createShotFromMarker(item, markerKey, now = Date.now()) {
   const shot = {
     shotId: marker.shotId,
     characterId: item.id,
+    ...(typeof marker.targetId === "string" && marker.targetId.length > 0
+      ? { targetId: marker.targetId }
+      : {}),
     markerKey,
     temporaryImage: { url: temporaryImage.url, mime: temporaryImage.mime },
     startedAt,
@@ -189,5 +193,17 @@ export function shouldScheduleCasingSound(shot, now = Date.now()) {
     Number.isFinite(now) &&
     now >= 0 &&
     now < getCasingSoundAt(shot)
+  );
+}
+
+
+export function shouldShowTargetHitEffect(shot, now = Date.now()) {
+  return Boolean(
+    isValidShotSchedule(shot) &&
+    typeof shot.targetId === "string" &&
+    shot.targetId.length > 0 &&
+    Number.isFinite(now) &&
+    now >= shot.startedAt &&
+    now < shot.startedAt + TARGET_HIT_EFFECT_DURATION_MS
   );
 }

@@ -1,10 +1,12 @@
-import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+import OBR, { buildEffect, isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 import { createAudioPlayer, playPreparedAudio, waitForAudioReady } from "./audio-player.js";
 import {
   SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CASING_SOUND_DELAY_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
   createShotTiming, createShotFromMarker, isValidShotSchedule, shouldScheduleShotSound, shouldScheduleCasingSound, getCasingSoundAt,
+  shouldShowTargetHitEffect, TARGET_HIT_EFFECT_DURATION_MS,
   canStartShot, compareClaims, canRestoreShot,
 } from "./shot-engine.js";
+import { buildTargetHitEffect } from "./hit-effect.js";
 
 const ID = "com.onze1.sistema-ameaca";
 const REQUEST = ID + "/request";
@@ -25,6 +27,7 @@ const timers = new Map();
 const soundTimers = new Map();
 const casingTimers = new Map();
 const scheduled = new Map();
+const targetHitEffects = new Map();
 
 let connectionId = "";
 let sceneReady = false;
@@ -153,6 +156,95 @@ function scheduleCasingSound(shot) {
   casingTimers.set(shot.shotId, timer);
 }
 
+async function removeTargetHitEffect(shotId) {
+  const entry = targetHitEffects.get(shotId);
+  if (!entry) return;
+
+  targetHitEffects.delete(shotId);
+  if (entry.timer) clearTimeout(entry.timer);
+  if (entry.effectId) {
+    try {
+      await OBR.scene.local.deleteItems([entry.effectId]);
+    } catch (error) {
+      console.warn("Sistema Ameaça: não foi possível remover o efeito de impacto", error);
+    }
+  }
+}
+
+function clearTargetHitEffects() {
+  const effectIds = [];
+  for (const entry of targetHitEffects.values()) {
+    if (entry.timer) clearTimeout(entry.timer);
+    if (entry.effectId) effectIds.push(entry.effectId);
+  }
+  targetHitEffects.clear();
+
+  if (effectIds.length) {
+    void OBR.scene.local.deleteItems(effectIds).catch(error => {
+      console.warn("Sistema Ameaça: falha ao limpar efeitos locais de impacto", error);
+    });
+  }
+}
+
+async function showTargetHitEffect(shot) {
+  if (!shouldShowTargetHitEffect(shot) || targetHitEffects.has(shot.shotId)) return;
+
+  const entry = { effectId: null, timer: null };
+  targetHitEffects.set(shot.shotId, entry);
+
+  try {
+    if (!sceneReady || !(await OBR.scene.isReady())) {
+      targetHitEffects.delete(shot.shotId);
+      return;
+    }
+
+    const targetItems = await OBR.scene.items.getItems([shot.targetId]);
+    const target = targetItems.find(item => item.id === shot.targetId && isImage(item));
+    if (!target) {
+      targetHitEffects.delete(shot.shotId);
+      return;
+    }
+
+    const remainingBeforeAdd = shot.startedAt + TARGET_HIT_EFFECT_DURATION_MS - Date.now();
+    if (remainingBeforeAdd <= 0) {
+      targetHitEffects.delete(shot.shotId);
+      return;
+    }
+
+    const effect = buildTargetHitEffect(shot, buildEffect);
+    if (!effect?.id) throw new Error("O SDK não gerou um ID para o efeito de impacto.");
+
+    await OBR.scene.local.addItems([effect]);
+    entry.effectId = effect.id;
+
+    // A cena pode ter sido descarregada enquanto addItems estava em andamento.
+    if (targetHitEffects.get(shot.shotId) !== entry) {
+      await OBR.scene.local.deleteItems([effect.id]);
+      return;
+    }
+
+    const remaining = shot.startedAt + TARGET_HIT_EFFECT_DURATION_MS - Date.now();
+    if (remaining <= 0) {
+      await removeTargetHitEffect(shot.shotId);
+      return;
+    }
+
+    entry.timer = setTimeout(() => {
+      void removeTargetHitEffect(shot.shotId);
+    }, remaining);
+  } catch (error) {
+    if (targetHitEffects.get(shot.shotId) === entry) targetHitEffects.delete(shot.shotId);
+    if (entry.effectId) {
+      try {
+        await OBR.scene.local.deleteItems([entry.effectId]);
+      } catch (cleanupError) {
+        console.warn("Sistema Ameaça: falha ao limpar um efeito de impacto incompleto", cleanupError);
+      }
+    }
+    console.warn("Sistema Ameaça: não foi possível mostrar o efeito de impacto no alvo", error);
+  }
+}
+
 function adoptShotMarker(item, force = false) {
   const shot = createShotFromMarker(item, MARKER);
   if (!shot) return;
@@ -163,6 +255,7 @@ function adoptShotMarker(item, force = false) {
 
   if (shouldScheduleShotSound(shot)) scheduleSound(shot);
   if (shouldScheduleCasingSound(shot)) scheduleCasingSound(shot);
+  if (shouldShowTargetHitEffect(shot)) void showTargetHitEffect(shot);
 }
 
 async function reconcileSceneShots() {
@@ -354,6 +447,7 @@ async function fire(request) {
         };
         const marker = {
           shotId,
+          targetId,
           originalImage,
           temporaryImage,
           startedAt: timing.startedAt,
@@ -373,6 +467,7 @@ async function fire(request) {
         shot = {
           shotId,
           characterId,
+          targetId,
           markerKey: MARKER,
           temporaryImage,
           ...timing,
@@ -390,6 +485,7 @@ async function fire(request) {
     scheduleRestore(shot);
     scheduleSound(shot);
     scheduleCasingSound(shot);
+    void showTargetHitEffect(shot);
 
     try {
       await OBR.broadcast.sendMessage(
@@ -460,6 +556,7 @@ OBR.onReady(async () => {
       if (!scheduled.has(shot.shotId)) scheduleRestore(shot);
       if (shouldScheduleShotSound(shot)) scheduleSound(shot);
       if (shouldScheduleCasingSound(shot)) scheduleCasingSound(shot);
+      if (shouldShowTargetHitEffect(shot)) void showTargetHitEffect(shot);
     });
 
     OBR.scene.items.onChange(items => {
@@ -471,6 +568,7 @@ OBR.onReady(async () => {
     OBR.scene.onReadyChange(ready => {
       sceneReady = ready;
       if (ready) void startRecovery();
+      else clearTargetHitEffects();
     });
 
     if (sceneReady) await startRecovery();
@@ -486,6 +584,7 @@ window.addEventListener("pagehide", () => {
   timers.clear();
   soundTimers.clear();
   casingTimers.clear();
+  clearTargetHitEffects();
 });
 
 window.addEventListener("pageshow", () => {
