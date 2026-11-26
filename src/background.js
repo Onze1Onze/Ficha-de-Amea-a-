@@ -1,18 +1,19 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 import {
-  SHOT_DURATION_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
+  SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
   canStartShot, compareClaims, canRestoreShot, hasShotMarker,
 } from "./shot-engine.js";
 
 const ID = "com.onze1.sistema-ameaca";
-const REQUEST = `${ID}/request`;
-const CLAIM = `${ID}/claim`;
-const EVENTS = `${ID}/events`;
-const MARKER = `${ID}/active-shot`;
-const LEASE = `${ID}/scene-lease`;
+const REQUEST = ID + "/request";
+const CLAIM = ID + "/claim";
+const EVENTS = ID + "/events";
+const MARKER = ID + "/active-shot";
+const LEASE = ID + "/scene-lease";
 const AUDIO = new URL("../audio/shotgun-20-gauge.mp3", import.meta.url).href;
 const claims = new Map();
 const timers = new Map();
+const soundTimers = new Map();
 const scheduled = new Map();
 let connectionId = "";
 let sceneReady = false;
@@ -35,6 +36,26 @@ async function sound() {
   audio.preload = "auto";
   try { await audio.play(); }
   catch (error) { console.warn("Sistema Ameaça: áudio bloqueado pelo navegador", error); }
+}
+
+function scheduleSound(shot) {
+  const previous = soundTimers.get(shot.shotId);
+  if (previous) clearTimeout(previous);
+
+  const soundAt = Number.isFinite(shot.soundAt)
+    ? shot.soundAt
+    : shot.startedAt + SHOT_SOUND_DELAY_MS;
+  const timer = setTimeout(() => {
+    soundTimers.delete(shot.shotId);
+    void sound();
+  }, Math.max(0, soundAt - Date.now()));
+  soundTimers.set(shot.shotId, timer);
+}
+
+function clearSoundTimer(shotId) {
+  const timer = soundTimers.get(shotId);
+  if (timer) clearTimeout(timer);
+  soundTimers.delete(shotId);
 }
 
 function pruneClaims() {
@@ -76,6 +97,7 @@ async function restore(shot) {
   const items = await getImages([shot.characterId]);
   const character = items.find(item => item.id === shot.characterId);
   if (!character || !hasShotMarker(character, shot)) {
+    clearSoundTimer(shot.shotId);
     await releaseLease(shot.shotId);
     return true;
   }
@@ -85,17 +107,14 @@ async function restore(shot) {
       const marker = item.metadata?.[MARKER];
       if (!marker || marker.shotId !== shot.shotId) continue;
       if (canRestoreShot(item, shot)) {
-        item.image = {
-          ...item.image,
-          url: marker.originalImage.url,
-          mime: marker.originalImage.mime,
-        };
+        item.image = { ...item.image, ...marker.originalImage };
       }
       const metadata = { ...(item.metadata ?? {}) };
       delete metadata[MARKER];
       item.metadata = metadata;
     }
   });
+  clearSoundTimer(shot.shotId);
   await releaseLease(shot.shotId);
   return true;
 }
@@ -120,18 +139,19 @@ function scheduleRestore(shot) {
 }
 
 async function fire(request) {
-  const { requestId, characterId, targetId, animationId } = request;
+  const { requestId, characterId, targetId, animation } = request;
   if (!sceneReady || !(await OBR.scene.isReady())) return reply(requestId, false, "A cena ainda não está pronta.");
   if (timers.size) return reply(requestId, false, "Já existe um disparo em andamento nesta cena.");
   const [items, role, canUpdate] = await Promise.all([
-    getImages([characterId, targetId, animationId]),
+    getImages([characterId, targetId]),
     OBR.player.getRole(),
     OBR.player.hasPermission("CHARACTER_UPDATE"),
   ]);
   const character = items.find(item => item.id === characterId);
   const target = items.find(item => item.id === targetId);
-  const animation = items.find(item => item.id === animationId);
-  if (!canStartShot({ character, target, animation })) return reply(requestId, false, "Seleção inválida. Confira personagem, alvo e imagem de animação.");
+  if (!canStartShot({ character, target, animation })) {
+    return reply(requestId, false, "Seleção inválida. Escolha personagem, alvo e um token da biblioteca de personagens.");
+  }
   if (role !== "GM" && !canUpdate) return reply(requestId, false, "A sala não permite que este jogador atualize tokens de personagem.");
   if (character.metadata?.[MARKER]) return reply(requestId, false, "Este personagem já está em uma animação.");
 
@@ -143,15 +163,18 @@ async function fire(request) {
     if (!(await winClaim(claim))) return reply(requestId, false, "Outro jogador iniciou um disparo ao mesmo tempo.");
     leased = await acquireLease(shotId);
     if (!leased) return reply(requestId, false, "Outro disparo está ocupando a cena.");
-    const fresh = await getImages([characterId, targetId, animationId]);
+    const fresh = await getImages([characterId, targetId]);
     const currentCharacter = fresh.find(item => item.id === characterId);
     const currentTarget = fresh.find(item => item.id === targetId);
-    const currentAnimation = fresh.find(item => item.id === animationId);
-    if (!canStartShot({ character: currentCharacter, target: currentTarget, animation: currentAnimation }) || currentCharacter.lastModified !== character.lastModified || currentCharacter.image.url !== character.image.url) {
+    if (
+      !canStartShot({ character: currentCharacter, target: currentTarget, animation }) ||
+      currentCharacter.lastModified !== character.lastModified ||
+      currentCharacter.image.url !== character.image.url
+    ) {
       return reply(requestId, false, "Um dos tokens mudou antes do disparo. Atualize as seleções e tente novamente.");
     }
     const originalImage = { ...currentCharacter.image };
-    const temporaryImage = { url: currentAnimation.image.url, mime: currentAnimation.image.mime };
+    const temporaryImage = { url: animation.image.url, mime: animation.image.mime };
     const marker = { shotId, originalImage, temporaryImage };
     await OBR.scene.items.updateItems([currentCharacter], drafts => {
       for (const item of drafts) {
@@ -163,17 +186,39 @@ async function fire(request) {
       }
     });
     if (!changed) return reply(requestId, false, "O Owlbear Rodeo não aplicou a troca visual.");
+
     const startedAt = Date.now();
-    const shot = { shotId, characterId, markerKey: MARKER, temporaryImage, startedAt, restoreAt: startedAt + SHOT_DURATION_MS, connectionId };
+    const shot = {
+      shotId,
+      characterId,
+      markerKey: MARKER,
+      temporaryImage,
+      startedAt,
+      soundAt: startedAt + SHOT_SOUND_DELAY_MS,
+      restoreAt: startedAt + SHOT_DURATION_MS,
+      connectionId,
+    };
     scheduleRestore(shot);
-    await sound();
-    await OBR.broadcast.sendMessage(EVENTS, { type: "started", ...shot }, { destination: "ALL" });
-    await reply(requestId, true, "Disparo executado. A aparência será restaurada em quatro segundos.");
+    scheduleSound(shot);
+
+    try {
+      await OBR.broadcast.sendMessage(EVENTS, { type: "started", ...shot }, { destination: "ALL" });
+    } catch (error) {
+      console.warn("Sistema Ameaça: não foi possível sincronizar o disparo com outros jogadores", error);
+    }
+    await reply(requestId, true, "Aparência trocada. Som em 1 segundo; restauração 3 segundos depois do som.");
   } catch (error) {
     console.error("Sistema Ameaça: falha no disparo", error);
     if (changed) {
       const marker = (await getImages([characterId])).find(item => item.id === characterId)?.metadata?.[MARKER];
-      if (marker?.shotId === shotId) await restore({ shotId, characterId, markerKey: MARKER, temporaryImage: marker.temporaryImage });
+      if (marker?.shotId === shotId) {
+        await restore({
+          shotId,
+          characterId,
+          markerKey: MARKER,
+          temporaryImage: marker.temporaryImage,
+        });
+      }
     }
     await reply(requestId, false, "Falha ao executar o disparo. A restauração foi tentada.");
   } finally {
@@ -195,15 +240,28 @@ OBR.onReady(async () => {
   OBR.broadcast.onMessage(EVENTS, event => {
     const data = event.data;
     if (data?.type !== "started" || !data.shotId) return;
-    if (data.connectionId !== connectionId) void sound();
-    scheduleRestore(data);
+    const startedAt = Number.isFinite(data.startedAt) ? data.startedAt : Date.now();
+    const shot = {
+      ...data,
+      startedAt,
+      soundAt: Number.isFinite(data.soundAt) ? data.soundAt : startedAt + SHOT_SOUND_DELAY_MS,
+      restoreAt: Number.isFinite(data.restoreAt) ? data.restoreAt : startedAt + SHOT_DURATION_MS,
+    };
+    if (data.connectionId !== connectionId) scheduleSound(shot);
+    scheduleRestore(shot);
   });
   OBR.scene.onReadyChange(ready => {
     sceneReady = ready;
-    if (ready) for (const shot of scheduled.values()) if (Date.now() >= shot.restoreAt) scheduleRestore(shot);
+    if (ready) {
+      for (const shot of scheduled.values()) {
+        if (Date.now() >= shot.restoreAt) scheduleRestore(shot);
+      }
+    }
   });
   window.addEventListener("pagehide", () => {
     for (const timer of timers.values()) clearTimeout(timer);
+    for (const timer of soundTimers.values()) clearTimeout(timer);
     timers.clear();
+    soundTimers.clear();
   });
 });

@@ -86,6 +86,15 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button.secondary {
+  border-color: #555863;
+  background: #30323a;
+  color: #e8e8eb;
+  letter-spacing: .02em;
+}
+button.secondary:hover:not(:disabled) { background: #3a3d46; }
+button.secondary:active:not(:disabled) { background: #292b31; }
+
 .status[data-kind="error"] { color: #e39b91; }
 .status[data-kind="success"] { color: #9bc7a5; }
 
@@ -95,4 +104,6 @@ button:disabled {
   select { background: #fff; color: #24252a; border-color: #c9cbd1; }
   .hint, .status { color: #6e727d; }
   button:disabled { background: #e4e5e8; color: #858894; border-color: #c9cbd1; }
+  button.secondary { background: #eceef1; color: #24252a; border-color: #c9cbd1; }
+  button.secondary:hover:not(:disabled) { background: #e1e3e7; }
 }

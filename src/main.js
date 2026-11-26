@@ -1,17 +1,18 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 
 const EXTENSION_ID = "com.onze1.sistema-ameaca";
-const REQUEST_CHANNEL = `${EXTENSION_ID}/request`;
-const EVENT_CHANNEL = `${EXTENSION_ID}/events`;
+const REQUEST_CHANNEL = EXTENSION_ID + "/request";
+const EVENT_CHANNEL = EXTENSION_ID + "/events";
 
 const characterSelect = document.querySelector("#character");
 const targetSelect = document.querySelector("#target");
-const animationSelect = document.querySelector("#animation");
+const chooseAnimationButton = document.querySelector("#choose-animation");
 const fireButton = document.querySelector("#fire");
 const statusNode = document.querySelector("#status");
 const animationHint = document.querySelector("#animation-hint");
 
 let sceneItems = [];
+let selectedAnimation = null;
 let requestInFlight = false;
 let unsubscribeItems = null;
 let unsubscribeScene = null;
@@ -26,7 +27,7 @@ function setStatus(message, kind = "") {
 
 function labelFor(item) {
   const name = typeof item.name === "string" ? item.name.trim() : "";
-  return name || `Sem nome · ${item.id.slice(0, 7)}`;
+  return name || "Sem nome · " + String(item.id).slice(0, 7);
 }
 
 function fillSelect(select, items, placeholder, selectedId) {
@@ -39,7 +40,7 @@ function fillSelect(select, items, placeholder, selectedId) {
   for (const item of items) {
     const option = document.createElement("option");
     option.value = item.id;
-    option.textContent = `${labelFor(item)}${item.layer ? ` · ${item.layer.toLowerCase()}` : ""}`;
+    option.textContent = labelFor(item) + (item.layer ? " · " + item.layer.toLowerCase() : "");
     fragment.append(option);
   }
 
@@ -54,12 +55,14 @@ function getSelected(id) {
 function updateButtonState() {
   const character = getSelected(characterSelect.value);
   const target = getSelected(targetSelect.value);
-  const animation = getSelected(animationSelect.value);
-  const ready = Boolean(character && target && animation && !requestInFlight);
-  fireButton.disabled = !ready;
-  animationHint.textContent = animation
-    ? "Imagem selecionada para a troca temporária."
-    : "Nenhum recurso selecionado. O disparo ficará bloqueado.";
+  fireButton.disabled = !Boolean(character && target && selectedAnimation && !requestInFlight);
+  chooseAnimationButton.disabled = requestInFlight;
+
+  if (!selectedAnimation) {
+    animationHint.textContent = "Nenhum token selecionado. Escolha um recurso da biblioteca de personagens.";
+  } else {
+    animationHint.textContent = "Biblioteca de personagens: " + selectedAnimation.name;
+  }
 }
 
 async function refreshItems() {
@@ -72,7 +75,6 @@ async function refreshItems() {
         sceneItems = [];
         fillSelect(characterSelect, [], "Cena indisponível", "");
         fillSelect(targetSelect, [], "Cena indisponível", "");
-        fillSelect(animationSelect, [], "Cena indisponível", "");
         updateButtonState();
         return;
       }
@@ -80,7 +82,6 @@ async function refreshItems() {
       const previous = {
         character: characterSelect.value,
         target: targetSelect.value,
-        animation: animationSelect.value,
       };
       sceneItems = (await OBR.scene.items.getItems(isImage)).filter(
         (item) => item.image && typeof item.image.url === "string"
@@ -89,21 +90,52 @@ async function refreshItems() {
       const characters = sceneItems.filter(
         (item) => item.layer === "CHARACTER" && item.visible !== false && !item.locked
       );
-      const usableTokens = sceneItems.filter(
+      const targets = sceneItems.filter(
         (item) => item.visible !== false && item.layer !== "MAP"
       );
-      const targets = usableTokens;
-      const animations = usableTokens;
 
       fillSelect(characterSelect, characters, "Selecione um personagem…", previous.character);
       fillSelect(targetSelect, targets, "Selecione um alvo…", previous.target);
-      fillSelect(animationSelect, animations, "Selecione uma imagem…", previous.animation);
       updateButtonState();
     } catch (error) {
       console.error("Sistema Ameaça: falha ao atualizar os tokens", error);
       setStatus("Não foi possível ler os tokens da cena.", "error");
     }
   });
+}
+
+async function chooseLibraryAnimation() {
+  if (requestInFlight) return;
+  try {
+    const downloads = await OBR.assets.downloadImages(false, "", "CHARACTER");
+    const asset = Array.isArray(downloads) ? downloads[0] : null;
+    if (!asset) return;
+
+    if (
+      asset.type !== "CHARACTER" ||
+      !asset.image ||
+      typeof asset.image.url !== "string" ||
+      !asset.image.url ||
+      typeof asset.image.mime !== "string"
+    ) {
+      setStatus("O recurso escolhido não é um token válido da biblioteca de personagens.", "error");
+      return;
+    }
+
+    selectedAnimation = {
+      name: typeof asset.name === "string" && asset.name.trim() ? asset.name.trim() : "Token da biblioteca",
+      type: asset.type,
+      image: {
+        url: asset.image.url,
+        mime: asset.image.mime,
+      },
+    };
+    updateButtonState();
+    setStatus("Token da biblioteca selecionado.", "success");
+  } catch (error) {
+    console.error("Sistema Ameaça: falha ao selecionar recurso da biblioteca", error);
+    setStatus("Não foi possível abrir a biblioteca de personagens.", "error");
+  }
 }
 
 function handleExtensionEvent(event) {
@@ -117,7 +149,7 @@ function handleExtensionEvent(event) {
   requestInFlight = false;
   updateButtonState();
   setStatus(
-    data.message || (data.ok ? "Disparo executado." : "Não foi possível executar o disparo."),
+    data.message || (data.ok ? "Disparo iniciado." : "Não foi possível executar o disparo."),
     data.ok ? "success" : "error"
   );
 }
@@ -127,13 +159,12 @@ fireButton.addEventListener("click", async () => {
 
   const characterId = characterSelect.value;
   const targetId = targetSelect.value;
-  const animationId = animationSelect.value;
   const character = getSelected(characterId);
   const target = getSelected(targetId);
-  const animation = getSelected(animationId);
+  const animation = selectedAnimation;
 
   if (!character || !target || !animation) {
-    setStatus("Selecione personagem, alvo e imagem de animação.", "error");
+    setStatus("Selecione personagem, alvo e um token da biblioteca.", "error");
     updateButtonState();
     return;
   }
@@ -141,14 +172,14 @@ fireButton.addEventListener("click", async () => {
     setStatus("O personagem não pode ser o próprio alvo.", "error");
     return;
   }
-  if (characterId === animationId || character.image.url === animation.image.url) {
-    setStatus("Escolha uma imagem diferente da aparência atual.", "error");
+  if (character.image.url === animation.image.url) {
+    setStatus("Escolha um token da biblioteca com imagem diferente da aparência atual.", "error");
     return;
   }
 
   requestInFlight = true;
   updateButtonState();
-  setStatus("Iniciando disparo…");
+  setStatus("Trocando a aparência do personagem…");
 
   const requestId = crypto.randomUUID();
   const timeout = window.setTimeout(() => {
@@ -156,13 +187,13 @@ fireButton.addEventListener("click", async () => {
     requestInFlight = false;
     updateButtonState();
     setStatus("O serviço da extensão não respondeu. Reabra a extensão e tente novamente.", "error");
-  }, 2200);
+  }, 4000);
   pendingRequests.set(requestId, { timeout });
 
   try {
     await OBR.broadcast.sendMessage(
       REQUEST_CHANNEL,
-      { type: "fire", requestId, characterId, targetId, animationId },
+      { type: "fire", requestId, characterId, targetId, animation },
       { destination: "LOCAL" }
     );
   } catch (error) {
@@ -175,13 +206,10 @@ fireButton.addEventListener("click", async () => {
   }
 });
 
-function onSelectionChanged() {
-  updateButtonState();
-}
+chooseAnimationButton.addEventListener("click", () => void chooseLibraryAnimation());
 
-characterSelect.addEventListener("change", onSelectionChanged);
-targetSelect.addEventListener("change", onSelectionChanged);
-animationSelect.addEventListener("change", onSelectionChanged);
+characterSelect.addEventListener("change", updateButtonState);
+targetSelect.addEventListener("change", updateButtonState);
 
 OBR.onReady(async () => {
   setStatus("Conectado.", "success");

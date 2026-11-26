@@ -1,4 +1,6 @@
+export const SHOT_SOUND_DELAY_MS = 1000;
 export const SHOT_DURATION_MS = 4000;
+export const SHOT_AFTER_SOUND_MS = SHOT_DURATION_MS - SHOT_SOUND_DELAY_MS;
 export const CLAIM_SETTLE_MS = 450;
 export const LEASE_TTL_MS = 8000;
 
@@ -13,6 +15,18 @@ export function isUsableImage(item) {
   );
 }
 
+export function isUsableLibraryCharacter(asset) {
+  return Boolean(
+    asset &&
+    asset.type === "CHARACTER" &&
+    asset.image &&
+    typeof asset.image.url === "string" &&
+    asset.image.url.length > 0 &&
+    typeof asset.image.mime === "string" &&
+    asset.image.mime.length > 0
+  );
+}
+
 export function canStartShot({ character, target, animation }) {
   return Boolean(
     isUsableImage(character) &&
@@ -23,10 +37,7 @@ export function canStartShot({ character, target, animation }) {
     target.visible !== false &&
     target.layer !== "MAP" &&
     target.id !== character.id &&
-    isUsableImage(animation) &&
-    animation.visible !== false &&
-    animation.layer !== "MAP" &&
-    animation.id !== character.id &&
+    isUsableLibraryCharacter(animation) &&
     animation.image.url !== character.image.url
   );
 }

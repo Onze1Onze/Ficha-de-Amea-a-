@@ -1,23 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  SHOT_DURATION_MS, canRestoreShot, canStartShot, compareClaims, hasShotMarker,
+  SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, SHOT_AFTER_SOUND_MS,
+  canRestoreShot, canStartShot, compareClaims, hasShotMarker,
 } from "../src/shot-engine.js";
 
-const image = (id, layer = "CHARACTER", url = `https://assets.test/${id}.png`) => ({
+const image = (id, layer = "CHARACTER", url = "https://assets.test/" + id + ".png") => ({
   id, type: "IMAGE", layer, visible: true, locked: false,
   image: { url, mime: "image/png", width: 100, height: 100 }, metadata: {},
+});
+const libraryCharacter = (url = "https://assets.test/library-flash.png") => ({
+  name: "Efeito de disparo",
+  type: "CHARACTER",
+  image: { url, mime: "image/png", width: 100, height: 100 },
 });
 const valid = () => ({
   character: image("character"),
   target: image("target", "PROP"),
-  animation: image("animation", "PROP"),
+  animation: libraryCharacter(),
 });
 
-test("a duração da troca é exatamente 4000 ms", () => {
+test("troca no início, som após 1 s e restauração 4 s após a troca", () => {
+  assert.equal(SHOT_SOUND_DELAY_MS, 1000);
   assert.equal(SHOT_DURATION_MS, 4000);
+  assert.equal(SHOT_AFTER_SOUND_MS, 3000);
+  assert.equal(SHOT_SOUND_DELAY_MS + SHOT_AFTER_SOUND_MS, SHOT_DURATION_MS);
 });
-test("aceita personagem, alvo e imagem distintos", () => {
+test("aceita personagem, alvo e token da biblioteca de personagens distintos", () => {
   assert.equal(canStartShot(valid()), true);
 });
 test("recusa personagem fora da camada CHARACTER, bloqueado ou invisível", () => {
@@ -26,16 +35,16 @@ test("recusa personagem fora da camada CHARACTER, bloqueado ou invisível", () =
   assert.equal(canStartShot({ ...v, character: { ...v.character, locked: true } }), false);
   assert.equal(canStartShot({ ...v, character: { ...v.character, visible: false } }), false);
 });
-test("recusa alvo ou animação invisível e imagem da camada MAP", () => {
+test("recusa alvo invisível, alvo da camada MAP e token de animação que veio da cena", () => {
   const v = valid();
   assert.equal(canStartShot({ ...v, target: { ...v.target, visible: false } }), false);
   assert.equal(canStartShot({ ...v, target: image("t", "MAP") }), false);
-  assert.equal(canStartShot({ ...v, animation: image("a", "MAP") }), false);
+  assert.equal(canStartShot({ ...v, animation: image("scene-animation", "CHARACTER") }), false);
 });
-test("recusa autoalvo e imagem de animação igual à aparência atual", () => {
+test("recusa autoalvo e recurso da biblioteca com a mesma imagem do personagem", () => {
   const v = valid();
   assert.equal(canStartShot({ ...v, target: v.character }), false);
-  assert.equal(canStartShot({ ...v, animation: image("a", "PROP", v.character.image.url) }), false);
+  assert.equal(canStartShot({ ...v, animation: libraryCharacter(v.character.image.url) }), false);
 });
 test("só restaura se marcador e imagem temporária ainda pertencem ao disparo", () => {
   const shot = {
