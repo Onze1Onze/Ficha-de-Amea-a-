@@ -4,9 +4,12 @@ import {
   SHOT_SOUND_DELAY_MS,
   SHOT_DURATION_MS,
   SHOT_AFTER_SOUND_MS,
+  CASING_SOUND_DELAY_MS,
   createShotTiming,
   createShotFromMarker,
   shouldScheduleShotSound,
+  shouldScheduleCasingSound,
+  getCasingSoundAt,
   isValidShotSchedule,
   isUsableImage,
   isUsableLibraryCharacter,
@@ -45,6 +48,7 @@ const validSchedule = (overrides = {}) => ({
   temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
   startedAt: 1000,
   soundAt: 2000,
+  casingAt: 2450,
   restoreAt: 5000,
   ...overrides,
 });
@@ -53,11 +57,13 @@ test("sequência temporal mantém som em 1 s e restauração 3 s depois", () => 
   assert.equal(SHOT_SOUND_DELAY_MS, 1000);
   assert.equal(SHOT_DURATION_MS, 4000);
   assert.equal(SHOT_AFTER_SOUND_MS, 3000);
+  assert.equal(CASING_SOUND_DELAY_MS, 450);
 
   const timing = createShotTiming(10_000);
   assert.deepEqual(timing, {
     startedAt: 10_000,
     soundAt: 11_000,
+    casingAt: 11_450,
     restoreAt: 14_000,
   });
 });
@@ -91,6 +97,26 @@ test("retoma o som durante recuperação somente enquanto o horário ainda está
   assert.equal(shouldScheduleShotSound(shot, Number.NaN), false);
 });
 
+test("o cartucho começa 450 ms após o disparo e antes da restauração", () => {
+  const shot = validSchedule();
+  assert.equal(getCasingSoundAt(shot), 2450);
+  assert.equal(shouldScheduleCasingSound(shot, 2449), true);
+  assert.equal(shouldScheduleCasingSound(shot, 2450), false);
+  assert.equal(shouldScheduleCasingSound(shot, 2451), false);
+  assert.equal(shouldScheduleCasingSound(null, 1000), false);
+  assert.equal(shouldScheduleCasingSound(shot, Number.NaN), false);
+  assert.equal(isValidShotSchedule({ ...shot, casingAt: 1900 }), false);
+  assert.equal(isValidShotSchedule({ ...shot, restoreAt: 2400 }), false);
+});
+
+test("cronogramas antigos sem casingAt mantêm compatibilidade", () => {
+  const legacyEvent = validSchedule();
+  delete legacyEvent.casingAt;
+  assert.equal(isValidShotSchedule(legacyEvent), true);
+  assert.equal(getCasingSoundAt(legacyEvent), 2450);
+  assert.equal(shouldScheduleCasingSound(legacyEvent, 2449), true);
+});
+
 test("reconstrói horários persistidos a partir do marcador da cena", () => {
   const current = {
     ...image("character"),
@@ -102,6 +128,7 @@ test("reconstrói horários persistidos a partir do marcador da cena", () => {
         temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
         startedAt: 10_000,
         soundAt: 11_000,
+        casingAt: 11_450,
         restoreAt: 14_000,
         connectionId: "player-1",
       },
@@ -115,6 +142,7 @@ test("reconstrói horários persistidos a partir do marcador da cena", () => {
     temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
     startedAt: 10_000,
     soundAt: 11_000,
+    casingAt: 11_450,
     restoreAt: 14_000,
     connectionId: "player-1",
   });
@@ -139,6 +167,7 @@ test("marcador antigo sem horários agenda restauração imediata sem tocar áud
     temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
     startedAt: 30_000,
     soundAt: 30_000,
+    casingAt: 30_000,
     restoreAt: 30_000,
     connectionId: "",
   });

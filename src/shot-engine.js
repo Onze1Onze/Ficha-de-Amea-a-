@@ -1,4 +1,5 @@
 export const SHOT_SOUND_DELAY_MS = 1000;
+export const CASING_SOUND_DELAY_MS = 450;
 export const SHOT_DURATION_MS = 4000;
 export const SHOT_AFTER_SOUND_MS = SHOT_DURATION_MS - SHOT_SOUND_DELAY_MS;
 export const CLAIM_SETTLE_MS = 450;
@@ -12,11 +13,20 @@ export function createShotTiming(startedAt = Date.now()) {
   return {
     startedAt,
     soundAt: startedAt + SHOT_SOUND_DELAY_MS,
+    casingAt: startedAt + SHOT_SOUND_DELAY_MS + CASING_SOUND_DELAY_MS,
     restoreAt: startedAt + SHOT_DURATION_MS,
   };
 }
 
+export function getCasingSoundAt(shot) {
+  if (!shot || !Number.isFinite(shot.soundAt)) return Number.NaN;
+  return Number.isFinite(shot.casingAt)
+    ? shot.casingAt
+    : shot.soundAt + CASING_SOUND_DELAY_MS;
+}
+
 export function isValidShotSchedule(shot) {
+  const casingAt = getCasingSoundAt(shot);
   return Boolean(
     shot &&
     typeof shot.shotId === "string" &&
@@ -33,9 +43,11 @@ export function isValidShotSchedule(shot) {
     Number.isFinite(shot.startedAt) &&
     Number.isFinite(shot.soundAt) &&
     Number.isFinite(shot.restoreAt) &&
+    Number.isFinite(casingAt) &&
     shot.startedAt >= 0 &&
     shot.soundAt >= shot.startedAt &&
-    shot.restoreAt >= shot.soundAt
+    casingAt >= shot.soundAt &&
+    shot.restoreAt > casingAt
   );
 }
 
@@ -140,15 +152,19 @@ export function createShotFromMarker(item, markerKey, now = Date.now()) {
   const startedAt = hasStartTime ? marker.startedAt : now;
   const fallbackTiming = hasStartTime
     ? createShotTiming(startedAt)
-    : { startedAt, soundAt: startedAt, restoreAt: startedAt };
+    : { startedAt, soundAt: startedAt, casingAt: startedAt, restoreAt: startedAt };
 
+  const soundAt = Number.isFinite(marker.soundAt) ? marker.soundAt : fallbackTiming.soundAt;
   const shot = {
     shotId: marker.shotId,
     characterId: item.id,
     markerKey,
     temporaryImage: { url: temporaryImage.url, mime: temporaryImage.mime },
     startedAt,
-    soundAt: Number.isFinite(marker.soundAt) ? marker.soundAt : fallbackTiming.soundAt,
+    soundAt,
+    casingAt: Number.isFinite(marker.casingAt)
+      ? marker.casingAt
+      : (hasStartTime ? soundAt + CASING_SOUND_DELAY_MS : soundAt),
     restoreAt: Number.isFinite(marker.restoreAt) ? marker.restoreAt : fallbackTiming.restoreAt,
     connectionId: typeof marker.connectionId === "string" ? marker.connectionId : "",
   };
@@ -163,5 +179,15 @@ export function shouldScheduleShotSound(shot, now = Date.now()) {
     Number.isFinite(now) &&
     now >= 0 &&
     now < shot.soundAt
+  );
+}
+
+
+export function shouldScheduleCasingSound(shot, now = Date.now()) {
+  return Boolean(
+    isValidShotSchedule(shot) &&
+    Number.isFinite(now) &&
+    now >= 0 &&
+    now < getCasingSoundAt(shot)
   );
 }

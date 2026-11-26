@@ -54,9 +54,12 @@ assert.ok(main.includes('"CHARACTER"'));
 assert.ok(background.includes("SHOT_SOUND_DELAY_MS"));
 assert.ok(background.includes("SHOT_DURATION_MS"));
 assert.ok(background.includes("shotgun-20-gauge.mp3"));
+assert.ok(background.includes("https://sfxmint.com/dl/bullet-casing-08.mp3"));
+assert.ok(background.includes("scheduleCasingSound"));
 assert.ok(background.includes("reconcileSceneShots"));
 assert.ok(background.includes("OBR.scene.items.updateItems"));
 assert.ok(main.includes("onMessage(EVENT_CHANNEL"));
+assert.ok(read("src/shot-engine.js").includes("CASING_SOUND_DELAY_MS = 450"));
 
 const uniqueArtifact = "pages-$" + "{{ github.run_id }}-$" + "{{ github.run_attempt }}";
 assert.ok(workflow.includes("name: " + uniqueArtifact), "o nome do artefato precisa variar por execução/tentativa");

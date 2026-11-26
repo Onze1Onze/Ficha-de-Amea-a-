@@ -1,7 +1,7 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 import {
-  SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
-  createShotTiming, createShotFromMarker, isValidShotSchedule, shouldScheduleShotSound,
+  SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CASING_SOUND_DELAY_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
+  createShotTiming, createShotFromMarker, isValidShotSchedule, shouldScheduleShotSound, shouldScheduleCasingSound, getCasingSoundAt,
   canStartShot, compareClaims, canRestoreShot,
 } from "./shot-engine.js";
 
@@ -12,10 +12,12 @@ const EVENTS = ID + "/events";
 const MARKER = ID + "/active-shot";
 const LEASE = ID + "/scene-lease";
 const AUDIO = new URL("../audio/shotgun-20-gauge.mp3", import.meta.url).href;
+const CASING_AUDIO = "https://sfxmint.com/dl/bullet-casing-08.mp3";
 
 const claims = new Map();
 const timers = new Map();
 const soundTimers = new Map();
+const casingTimers = new Map();
 const scheduled = new Map();
 
 let connectionId = "";
@@ -92,9 +94,13 @@ function clearSoundTimer(shotId) {
   const timer = soundTimers.get(shotId);
   if (timer) clearTimeout(timer);
   soundTimers.delete(shotId);
+
+  const casingTimer = casingTimers.get(shotId);
+  if (casingTimer) clearTimeout(casingTimer);
+  casingTimers.delete(shotId);
 }
 
-async function playShotSound(shot) {
+async function playAudioForShot(shot, url, volume, label) {
   try {
     if (!(await OBR.scene.isReady())) return;
 
@@ -103,13 +109,21 @@ async function playShotSound(shot) {
 
     if (!character || !canRestoreShot(character, shot)) return;
 
-    const audio = new Audio(AUDIO);
-    audio.volume = 0.72;
+    const audio = new Audio(url);
+    audio.volume = volume;
     audio.preload = "auto";
     await audio.play();
   } catch (error) {
-    console.warn("Sistema Ameaça: não foi possível reproduzir o áudio", error);
+    console.warn("Sistema Ameaça: não foi possível reproduzir o áudio (" + label + ")", error);
   }
+}
+
+async function playShotSound(shot) {
+  await playAudioForShot(shot, AUDIO, 0.72, "disparo");
+}
+
+async function playCasingSound(shot) {
+  await playAudioForShot(shot, CASING_AUDIO, 1, "cartucho");
 }
 
 function scheduleSound(shot) {
@@ -124,6 +138,18 @@ function scheduleSound(shot) {
   soundTimers.set(shot.shotId, timer);
 }
 
+function scheduleCasingSound(shot) {
+  if (!isValidShotSchedule(shot) || casingTimers.has(shot.shotId)) return;
+
+  const delay = Math.max(0, getCasingSoundAt(shot) - Date.now());
+  const timer = setTimeout(() => {
+    casingTimers.delete(shot.shotId);
+    void playCasingSound(shot);
+  }, delay);
+
+  casingTimers.set(shot.shotId, timer);
+}
+
 function adoptShotMarker(item, force = false) {
   const shot = createShotFromMarker(item, MARKER);
   if (!shot) return;
@@ -133,6 +159,7 @@ function adoptShotMarker(item, force = false) {
   }
 
   if (shouldScheduleShotSound(shot)) scheduleSound(shot);
+  if (shouldScheduleCasingSound(shot)) scheduleCasingSound(shot);
 }
 
 async function reconcileSceneShots() {
@@ -317,6 +344,7 @@ async function fire(request) {
           temporaryImage,
           startedAt: timing.startedAt,
           soundAt: timing.soundAt,
+          casingAt: timing.casingAt,
           restoreAt: timing.restoreAt,
           connectionId,
         };
@@ -347,6 +375,7 @@ async function fire(request) {
 
     scheduleRestore(shot);
     scheduleSound(shot);
+    scheduleCasingSound(shot);
 
     try {
       await OBR.broadcast.sendMessage(
@@ -416,6 +445,7 @@ OBR.onReady(async () => {
 
       if (!scheduled.has(shot.shotId)) scheduleRestore(shot);
       if (shouldScheduleShotSound(shot)) scheduleSound(shot);
+      if (shouldScheduleCasingSound(shot)) scheduleCasingSound(shot);
     });
 
     OBR.scene.items.onChange(items => {
@@ -438,8 +468,10 @@ OBR.onReady(async () => {
 window.addEventListener("pagehide", () => {
   for (const timer of timers.values()) clearTimeout(timer);
   for (const timer of soundTimers.values()) clearTimeout(timer);
+  for (const timer of casingTimers.values()) clearTimeout(timer);
   timers.clear();
   soundTimers.clear();
+  casingTimers.clear();
 });
 
 window.addEventListener("pageshow", () => {
