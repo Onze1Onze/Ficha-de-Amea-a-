@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Sistema Ameaça</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="panel" aria-label="Disparo">
+      <div class="field">
+        <label for="character">Personagem</label>
+        <select id="character" autocomplete="off">
+          <option value="">Carregando personagens…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="target">Alvo</label>
+        <select id="target" autocomplete="off">
+          <option value="">Selecione um alvo…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="animation">Token de animação</label>
+        <select id="animation" autocomplete="off">
+          <option value="">Selecione uma imagem…</option>
+        </select>
+        <p class="hint" id="animation-hint">Escolha uma imagem para representar o disparo.</p>
+      </div>
+      <button id="fire" type="button" disabled>DISPARAR</button>
+      <p id="status" class="status" role="status" aria-live="polite">Conectando ao Owlbear Rodeo…</p>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "sistema-ameaca-owlbear",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check src/main.js && node --check src/background.js && node --check src/shot-engine.js && node scripts/validate-manifest.js",
+    "test": "node --test"
+  }
+}
