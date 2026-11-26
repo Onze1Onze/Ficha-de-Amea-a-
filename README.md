@@ -22,7 +22,7 @@ O endereço depende da ativação do GitHub Pages para este repositório. O work
 
 - No instante da troca visual, a aparência do personagem na cena é substituída pela imagem escolhida na biblioteca.
 - 1.000 ms depois, o efeito sonoro local de tiro é reproduzido.
-- 450 ms depois do início do disparo, o som de um estojo vazio de espingarda caindo e batendo no piso de madeira é reproduzido. O claque dura aproximadamente 0,95 segundo.
+- 450 ms depois do início do som do disparo (1.450 ms após a troca visual), o som de um estojo vazio de espingarda caindo e batendo no piso de madeira é reproduzido. O claque dura aproximadamente 0,95 segundo.
 - A aparência original é restaurada em 4.000 ms após a troca visual. O som do cartucho termina antes da restauração.
 
 A operação mantém o mesmo item e altera somente a URL e o MIME da imagem, além de uma chave namespaced em metadata. O alvo não é alterado. O token selecionado na biblioteca nunca é colocado na mesa, removido ou modificado.
