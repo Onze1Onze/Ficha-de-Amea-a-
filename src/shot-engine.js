@@ -3,11 +3,32 @@ export const CLAIM_SETTLE_MS = 450;
 export const LEASE_TTL_MS = 8000;
 
 export function isUsableImage(item) {
-  return Boolean(item && item.type === "IMAGE" && typeof item.id === "string" && item.image && typeof item.image.url === "string" && item.image.url.length > 0);
+  return Boolean(
+    item &&
+    item.type === "IMAGE" &&
+    typeof item.id === "string" &&
+    item.image &&
+    typeof item.image.url === "string" &&
+    item.image.url.length > 0
+  );
 }
 
 export function canStartShot({ character, target, animation }) {
-  return Boolean(isUsableImage(character) && character.layer === "CHARACTER" && character.visible !== false && !character.locked && isUsableImage(target) && target.visible !== false && target.layer !== "MAP" && target.id !== character.id && isUsableImage(animation) && animation.visible !== false && animation.layer !== "MAP" && animation.id !== character.id && animation.image.url !== character.image.url);
+  return Boolean(
+    isUsableImage(character) &&
+    character.layer === "CHARACTER" &&
+    character.visible !== false &&
+    !character.locked &&
+    isUsableImage(target) &&
+    target.visible !== false &&
+    target.layer !== "MAP" &&
+    target.id !== character.id &&
+    isUsableImage(animation) &&
+    animation.visible !== false &&
+    animation.layer !== "MAP" &&
+    animation.id !== character.id &&
+    animation.image.url !== character.image.url
+  );
 }
 
 export function compareClaims(a, b) {
@@ -21,10 +42,19 @@ export function compareClaims(a, b) {
 }
 
 export function canRestoreShot(item, shot) {
-  const marker = item?.metadata?.[shot?.markerKey];
-  return Boolean(isUsableImage(item) && marker?.shotId === shot?.shotId && item.image.url === shot.temporaryImage?.url && item.image.mime === shot.temporaryImage?.mime);
+  if (!isUsableImage(item) || !shot || !shot.shotId) return false;
+  const marker = item.metadata?.[shot.markerKey];
+  return Boolean(
+    marker &&
+    marker.shotId === shot.shotId &&
+    item.image.url === shot.temporaryImage?.url &&
+    item.image.mime === shot.temporaryImage?.mime
+  );
 }
 
 export function hasShotMarker(item, shot) {
-  return Boolean(item && item.metadata?.[shot?.markerKey]?.shotId === shot?.shotId);
+  return Boolean(
+    item &&
+    item.metadata?.[shot.markerKey]?.shotId === shot.shotId
+  );
 }
