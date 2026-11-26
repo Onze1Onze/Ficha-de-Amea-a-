@@ -27,6 +27,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Baixar e validar efeito CC0 do estojo
+        run: npm run prepare:audio
       - name: Validar sintaxe, manifesto e arquivos
         run: npm run check
       - name: Executar testes unitários

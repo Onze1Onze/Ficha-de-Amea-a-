@@ -1,4 +1,5 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+import { createAudioPlayer, playPreparedAudio } from "./audio-player.js";
 import {
   SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CASING_SOUND_DELAY_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
   createShotTiming, createShotFromMarker, isValidShotSchedule, shouldScheduleShotSound, shouldScheduleCasingSound, getCasingSoundAt,
@@ -11,11 +12,13 @@ const CLAIM = ID + "/claim";
 const EVENTS = ID + "/events";
 const MARKER = ID + "/active-shot";
 const LEASE = ID + "/scene-lease";
-const AUDIO = new URL("../audio/shotgun-20-gauge.mp3", import.meta.url).href;
-const CASING_AUDIO = "https://sfxmint.com/dl/bullet-casing-06.mp3";
-const casingAudioPlayer = new Audio(CASING_AUDIO);
-casingAudioPlayer.preload = "auto";
-casingAudioPlayer.load();
+const SHOT_AUDIO_URL = new URL("../audio/shotgun-20-gauge.mp3", import.meta.url).href;
+const CASING_AUDIO_URL = new URL("../audio/bullet-casing-metal.mp3", import.meta.url).href;
+
+// Os dois elementos são preparados uma única vez antes do primeiro disparo.
+// Assim, o temporizador não precisa criar nem iniciar o carregamento do áudio.
+const shotAudioPlayer = createAudioPlayer(SHOT_AUDIO_URL);
+const casingAudioPlayer = createAudioPlayer(CASING_AUDIO_URL);
 
 const claims = new Map();
 const timers = new Map();
@@ -103,7 +106,7 @@ function clearSoundTimer(shotId) {
   casingTimers.delete(shotId);
 }
 
-async function playAudioForShot(shot, url, volume, label) {
+async function playAudioForShot(shot, audioPlayer, volume, label) {
   try {
     if (!(await OBR.scene.isReady())) return;
 
@@ -112,25 +115,18 @@ async function playAudioForShot(shot, url, volume, label) {
 
     if (!character || !canRestoreShot(character, shot)) return;
 
-    const audio = url === CASING_AUDIO ? casingAudioPlayer : new Audio(url);
-    if (url === CASING_AUDIO) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
-    audio.volume = volume;
-    audio.preload = "auto";
-    await audio.play();
+    await playPreparedAudio(audioPlayer, volume);
   } catch (error) {
     console.warn("Sistema Ameaça: não foi possível reproduzir o áudio (" + label + ")", error);
   }
 }
 
 async function playShotSound(shot) {
-  await playAudioForShot(shot, AUDIO, 0.72, "disparo");
+  await playAudioForShot(shot, shotAudioPlayer, 0.72, "disparo");
 }
 
 async function playCasingSound(shot) {
-  await playAudioForShot(shot, CASING_AUDIO, 1, "cartucho");
+  await playAudioForShot(shot, casingAudioPlayer, 1, "cartucho");
 }
 
 function scheduleSound(shot) {

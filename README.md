@@ -34,10 +34,14 @@ A operação mantém o mesmo item e altera somente a URL e o MIME da imagem, al�
 - background.html, src/background.js: controlador dos temporizadores, áudio, restauração e recuperação de marcadores pendentes.
 - src/shot-engine.js: regras de seleção, cronograma, validação, arbitragem e restauração segura.
 - audio/shotgun-20-gauge.mp3: efeito sonoro local do disparo.
-- Efeito de estojo: Steel Floor Bullet Casing 06, MP3 CC0 carregado diretamente da SFXMint e pré-carregado ao iniciar o background; o provedor permite hotlink e o áudio requer conexão com a internet.
+- Efeito de estojo: Steel Floor Bullet Casing 06, MP3 CC0 baixado durante a publicação e incluído no artefato do GitHub Pages. O runtime reproduz o arquivo local, sem hotlink externo nem requisição à SFXMint durante a partida.
+- src/audio-player.js: criação e pré-carregamento dos reprodutores, reinício seguro e controle de volume.
+- scripts/prepare-audio.js: aquisição do arquivo CC0 antes da validação e publicação.
 - .github/workflows/pages.yml: validação e publicação estática no GitHub Pages.
 
-O projeto usa o SDK oficial @owlbear-rodeo/sdk na versão 3.1.0. Não há etapa de build: os arquivos são estáticos e o GitHub Pages publica a raiz.
+O projeto usa o SDK oficial @owlbear-rodeo/sdk na versão 3.1.0. Não há compilação de frontend: o workflow baixa e valida o MP3 CC0 do estojo, executa os testes e publica os arquivos estáticos e o áudio local no GitHub Pages.
+
+Para executar a validação local, use Node.js 20 ou superior, rode `npm run prepare:audio` (requer internet na primeira execução), depois `npm run check` e `npm test`.
 
 ## Segurança, concorrência e recuperação
 
@@ -53,8 +57,9 @@ Se todos os clientes com a extensão forem fechados ou desconectados, a restaura
 
 Requer Node.js 20 ou superior. Não é necessário instalar dependências.
 
-- npm run check: sintaxe JavaScript, manifesto, permissões, arquivos, URLs e configuração de publicação.
-- npm test: testes unitários de cronograma, intervalo do som de cartucho, compatibilidade com marcadores antigos, validação dos recursos, seleção de tokens, restauração segura e arbitragem de concorrência.
+- npm run prepare:audio: baixa o efeito CC0 e verifica MIME, tamanho e quadros MPEG antes de colocá-lo em `audio/`.
+- npm run check: sintaxe JavaScript, versão 1.0.1, manifesto, permissões, arquivos, integridade estrutural dos MP3, URLs e ordem de publicação.
+- npm test: testes unitários de cronograma, seleção, recuperação, restauração, concorrência, preparação dos reprodutores, reinício de áudio, volume e validação dos dados MP3.
 
 Os testes automatizados não substituem um teste prático dentro de uma sala real do Owlbear Rodeo com múltiplos jogadores, permissões distintas e reprodução de áudio habilitada.
 
