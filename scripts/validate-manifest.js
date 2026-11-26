@@ -64,9 +64,9 @@ assert.ok(background.includes("OBR.scene.items.updateItems"));
 assert.ok(main.includes("onMessage(EVENT_CHANNEL"));
 assert.ok(shotEngine.includes("CASING_SOUND_DELAY_MS = 450"));
 
-const uniqueArtifact = "pages-$" + "{{ github.run_id }}-$" + "{{ github.run_attempt }}";
-assert.ok(workflow.includes("name: " + uniqueArtifact), "o nome do artefato precisa variar por execução/tentativa");
-assert.ok(workflow.includes("artifact_name: " + uniqueArtifact), "deploy-pages precisa consumir o artefato exclusivo da tentativa");
+assert.ok(workflow.includes("uses: actions/upload-pages-artifact@v4"), "a publicação deve usar o uploader oficial atual do GitHub Pages");
+assert.ok(workflow.includes("uses: actions/deploy-pages@v4"), "a publicação deve usar deploy-pages v4");
+assert.ok(!workflow.includes("artifact_name:"), "deploy-pages deve usar o nome canônico do artefato GitHub Pages");
 assert.ok(!workflow.includes("npm run prepare:audio"), "o runner não deve tentar baixar MP3 sem chave");
 assert.equal(existsSync(resolve(root, "src/hit-effect.js")), false, "código de efeitos visuais removido");
 assert.equal(existsSync(resolve(root, "tests/hit-effect.test.js")), false, "testes de efeitos visuais removidos");
