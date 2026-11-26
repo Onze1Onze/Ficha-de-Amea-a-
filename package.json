@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/main.js && node --check src/background.js && node --check src/shot-engine.js && node scripts/validate-manifest.js",
+    "check": "node --check src/main.js && node --check src/background.js && node --check src/shot-engine.js && node --check scripts/validate-manifest.js && node scripts/validate-manifest.js",
     "test": "node --test"
   }
 }

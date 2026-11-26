@@ -1,4 +1,5 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+import { isUsableLibraryCharacter } from "./shot-engine.js";
 
 const EXTENSION_ID = "com.onze1.sistema-ameaca";
 const REQUEST_CHANNEL = EXTENSION_ID + "/request";
@@ -15,10 +16,11 @@ let sceneItems = [];
 let selectedAnimation = null;
 let requestInFlight = false;
 let libraryPickerInFlight = false;
+let refreshInFlight = false;
+let refreshAgain = false;
 let unsubscribeItems = null;
 let unsubscribeScene = null;
 let unsubscribeEvents = null;
-let refreshQueued = false;
 const pendingRequests = new Map();
 
 function setStatus(message, kind = "") {
@@ -56,7 +58,9 @@ function getSelected(id) {
 function updateButtonState() {
   const character = getSelected(characterSelect.value);
   const target = getSelected(targetSelect.value);
-  fireButton.disabled = !Boolean(character && target && selectedAnimation && !requestInFlight);
+  fireButton.disabled = !Boolean(
+    character && target && selectedAnimation && !requestInFlight && !libraryPickerInFlight
+  );
   chooseAnimationButton.disabled = requestInFlight || libraryPickerInFlight;
 
   if (!selectedAnimation) {
@@ -66,43 +70,58 @@ function updateButtonState() {
   }
 }
 
-async function refreshItems() {
-  if (refreshQueued) return;
-  refreshQueued = true;
-  queueMicrotask(async () => {
-    refreshQueued = false;
-    try {
-      if (!(await OBR.scene.isReady())) {
-        sceneItems = [];
-        fillSelect(characterSelect, [], "Cena indisponível", "");
-        fillSelect(targetSelect, [], "Cena indisponível", "");
-        updateButtonState();
-        return;
-      }
-
-      const previous = {
-        character: characterSelect.value,
-        target: targetSelect.value,
-      };
-      sceneItems = (await OBR.scene.items.getItems(isImage)).filter(
-        (item) => item.image && typeof item.image.url === "string"
-      );
-
-      const characters = sceneItems.filter(
-        (item) => item.layer === "CHARACTER" && item.visible !== false && !item.locked
-      );
-      const targets = sceneItems.filter(
-        (item) => item.visible !== false && item.layer !== "MAP"
-      );
-
-      fillSelect(characterSelect, characters, "Selecione um personagem…", previous.character);
-      fillSelect(targetSelect, targets, "Selecione um alvo…", previous.target);
+async function refreshItemsOnce() {
+  try {
+    if (!(await OBR.scene.isReady())) {
+      sceneItems = [];
+      fillSelect(characterSelect, [], "Cena indisponível", "");
+      fillSelect(targetSelect, [], "Cena indisponível", "");
       updateButtonState();
-    } catch (error) {
-      console.error("Sistema Ameaça: falha ao atualizar os tokens", error);
-      setStatus("Não foi possível ler os tokens da cena.", "error");
+      return;
     }
-  });
+
+    const previous = {
+      character: characterSelect.value,
+      target: targetSelect.value,
+    };
+    const nextItems = await OBR.scene.items.getItems(isImage);
+    sceneItems = nextItems.filter(
+      (item) => item.image && typeof item.image.url === "string" && item.image.url.length > 0
+    );
+
+    const characters = sceneItems.filter(
+      (item) => item.layer === "CHARACTER" && item.visible !== false && !item.locked
+    );
+    const targets = sceneItems.filter(
+      (item) => item.visible !== false && item.layer !== "MAP"
+    );
+
+    fillSelect(characterSelect, characters, "Selecione um personagem…", previous.character);
+    fillSelect(targetSelect, targets, "Selecione um alvo…", previous.target);
+    updateButtonState();
+  } catch (error) {
+    console.error("Sistema Ameaça: falha ao atualizar os tokens", error);
+    sceneItems = [];
+    fillSelect(characterSelect, [], "Não foi possível carregar", "");
+    fillSelect(targetSelect, [], "Não foi possível carregar", "");
+    updateButtonState();
+    setStatus("Não foi possível ler os tokens da cena. Tente novamente.", "error");
+  }
+}
+
+async function refreshItems() {
+  refreshAgain = true;
+  if (refreshInFlight) return;
+
+  refreshInFlight = true;
+  try {
+    while (refreshAgain) {
+      refreshAgain = false;
+      await refreshItemsOnce();
+    }
+  } finally {
+    refreshInFlight = false;
+  }
 }
 
 function getErrorDetails(error) {
@@ -111,7 +130,7 @@ function getErrorDetails(error) {
   }
   if (typeof error === "string") return error;
   try {
-    return JSON.stringify(error);
+    return JSON.stringify(error) || "erro desconhecido";
   } catch {
     return String(error);
   }
@@ -121,7 +140,7 @@ async function chooseLibraryAnimation() {
   if (requestInFlight || libraryPickerInFlight) return;
 
   if (!OBR.isReady || !OBR.assets || typeof OBR.assets.downloadImages !== "function") {
-    setStatus("O SDK do Owlbear não disponibilizou o seletor de imagens. Feche e reabra a extensão.", "error");
+    setStatus("O SDK do Owlbear não disponibilizou a biblioteca de imagens. Feche e reabra a extensão.", "error");
     return;
   }
 
@@ -133,13 +152,9 @@ async function chooseLibraryAnimation() {
     let downloads;
 
     try {
-      // O filtro CHARACTER abre diretamente na categoria de personagens.
-      // O segundo argumento é omitido deliberadamente: não há busca inicial.
       downloads = await OBR.assets.downloadImages(false, undefined, "CHARACTER");
     } catch (filteredError) {
       console.warn("Sistema Ameaça: seletor com filtro CHARACTER falhou; tentando sem filtro.", filteredError);
-      // Alguns ambientes/versões do Owlbear podem não aplicar o typeHint.
-      // A seleção ainda é validada como CHARACTER antes de ser aceita.
       downloads = await OBR.assets.downloadImages(false);
     }
 
@@ -148,22 +163,13 @@ async function chooseLibraryAnimation() {
     }
 
     if (downloads.length === 0) {
-      setStatus("Nenhum token selecionado. A biblioteca continua disponível para uma nova tentativa.");
+      setStatus("Seleção cancelada. A aparência escolhida anteriormente foi mantida.");
       return;
     }
 
-    const asset = downloads.find((candidate) =>
-      candidate &&
-      candidate.type === "CHARACTER" &&
-      candidate.image &&
-      typeof candidate.image.url === "string" &&
-      candidate.image.url.length > 0 &&
-      typeof candidate.image.mime === "string" &&
-      candidate.image.mime.length > 0
-    );
-
+    const asset = downloads.find(isUsableLibraryCharacter);
     if (!asset) {
-      setStatus("O item escolhido não é um token válido da categoria Personagens. Abra a aba Personagens e tente novamente.", "error");
+      setStatus("O item escolhido não é um token válido da categoria Personagens. Abra essa aba e tente novamente.", "error");
       return;
     }
 
@@ -188,9 +194,11 @@ async function chooseLibraryAnimation() {
     updateButtonState();
   }
 }
+
 function handleExtensionEvent(event) {
   const data = event.data;
   if (data?.type !== "status" || !data.requestId) return;
+
   const pending = pendingRequests.get(data.requestId);
   if (!pending) return;
 
@@ -205,7 +213,7 @@ function handleExtensionEvent(event) {
 }
 
 fireButton.addEventListener("click", async () => {
-  if (requestInFlight) return;
+  if (requestInFlight || libraryPickerInFlight) return;
 
   const characterId = characterSelect.value;
   const targetId = targetSelect.value;
@@ -236,8 +244,8 @@ fireButton.addEventListener("click", async () => {
     pendingRequests.delete(requestId);
     requestInFlight = false;
     updateButtonState();
-    setStatus("O serviço da extensão não respondeu. Reabra a extensão e tente novamente.", "error");
-  }, 4000);
+    setStatus("O serviço da extensão não respondeu. Verifique a conexão e tente novamente.", "error");
+  }, 8000);
   pendingRequests.set(requestId, { timeout });
 
   try {
@@ -257,16 +265,20 @@ fireButton.addEventListener("click", async () => {
 });
 
 chooseAnimationButton.addEventListener("click", () => void chooseLibraryAnimation());
-
 characterSelect.addEventListener("change", updateButtonState);
 targetSelect.addEventListener("change", updateButtonState);
 
 OBR.onReady(async () => {
-  setStatus("Conectado.", "success");
-  unsubscribeItems = OBR.scene.items.onChange(() => void refreshItems());
-  unsubscribeScene = OBR.scene.onReadyChange(() => void refreshItems());
-  unsubscribeEvents = OBR.broadcast.onMessage(EVENT_CHANNEL, handleExtensionEvent);
-  await refreshItems();
+  try {
+    setStatus("Conectado.", "success");
+    unsubscribeItems = OBR.scene.items.onChange(() => void refreshItems());
+    unsubscribeScene = OBR.scene.onReadyChange(() => void refreshItems());
+    unsubscribeEvents = OBR.broadcast.onMessage(EVENT_CHANNEL, handleExtensionEvent);
+    await refreshItems();
+  } catch (error) {
+    console.error("Sistema Ameaça: não foi possível inicializar o painel", error);
+    setStatus("Não foi possível inicializar a extensão. Reabra o painel.", "error");
+  }
 });
 
 window.addEventListener("pagehide", () => {

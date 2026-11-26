@@ -20,39 +20,41 @@ O endereço depende da ativação do GitHub Pages para este repositório. O work
 
 ## Sequência do disparo
 
-- No instante do clique, a aparência do personagem na cena é substituída pela imagem escolhida na biblioteca.
-- 1.000 ms depois da troca, o efeito sonoro local de tiro é reproduzido.
-- 3.000 ms depois do som, a aparência original é restaurada. Portanto, a restauração acontece exatamente 4.000 ms após a troca visual.
+- No instante da troca visual, a aparência do personagem na cena é substituída pela imagem escolhida na biblioteca.
+- 1.000 ms depois, o efeito sonoro local de tiro é reproduzido.
+- 3.000 ms depois do som, a aparência original é restaurada. Portanto, a restauração está programada para 4.000 ms depois da troca visual.
 
-A operação mantém o mesmo item e altera somente a imagem temporária e uma chave namespaced em metadata. O alvo não é alterado. O token selecionado na biblioteca nunca é colocado na mesa, removido ou modificado.
+A operação mantém o mesmo item e altera somente a URL e o MIME da imagem, além de uma chave namespaced em metadata. O alvo não é alterado. O token selecionado na biblioteca nunca é colocado na mesa, removido ou modificado.
 
 ## Arquitetura
 
 - manifest.json: manifesto do Owlbear Rodeo.
-- index.html, style.css, src/main.js: painel compacto e seleção do token de animação pela API oficial de biblioteca OBR.assets.downloadImages.
-- background.html, src/background.js: controlador persistente dos temporizadores, áudio e restauração.
-- src/shot-engine.js: regras de seleção, tempos e restauração segura.
+- index.html, style.css, src/main.js: painel compacto e seleção do token de animação pela API oficial OBR.assets.downloadImages.
+- background.html, src/background.js: controlador dos temporizadores, áudio, restauração e recuperação de marcadores pendentes.
+- src/shot-engine.js: regras de seleção, cronograma, validação, arbitragem e restauração segura.
 - audio/shotgun-20-gauge.mp3: efeito sonoro local.
-- .github/workflows/pages.yml: publicação estática no GitHub Pages.
+- .github/workflows/pages.yml: validação e publicação estática no GitHub Pages.
 
 O projeto usa o SDK oficial @owlbear-rodeo/sdk na versão 3.1.0. Não há etapa de build: os arquivos são estáticos e o GitHub Pages publica a raiz.
 
-## Segurança e concorrência
+## Segurança, concorrência e recuperação
 
-A extensão usa uma concessão temporária em metadados da cena, anúncios de concorrência via OBR.broadcast e um marcador namespaced no item original. A restauração só ocorre se o marcador pertencer ao disparo e a imagem ainda for a imagem temporária esperada. Se o usuário modificar a imagem durante os quatro segundos, a extensão não sobrescreve essa alteração.
+A extensão usa uma concessão temporária em metadados da cena, anúncios de concorrência via OBR.broadcast e um marcador namespaced no próprio personagem. A concessão expira automaticamente. A arbitragem reduz conflitos entre jogadores, mas não é uma transação distribuída: a API do Owlbear não oferece compare-and-swap para reservar atomicamente um token entre clientes.
 
-A API do Owlbear não oferece uma operação compare-and-swap ou transação distribuída para reservar atomicamente um token entre jogadores. O protocolo de broadcast + concessão reduz conflitos, mas não constitui exclusão mútua matematicamente garantida diante de perda de mensagens ou concorrência extrema. Os outros clientes também recebem a ordem de restauração como redundância; a permissão efetiva do Owlbear continua prevalecendo.
+A restauração relê o item imediatamente antes de atualizá-lo e só troca URL/MIME de volta se o marcador ainda pertencer ao disparo e a imagem temporária continuar aplicada. Se o usuário modificar a aparência durante a animação, essa alteração é preservada e o marcador é removido sem sobrescrever a edição.
 
-O temporizador principal fica na página de background da extensão, fora do popover. Se a extensão for desativada por completo ou todos os clientes que possam restaurar perderem conexão antes do fim da animação, nenhuma extensão web pode garantir uma restauração remota sem um processo ativo e autorizado. A chave de concessão expira automaticamente.
+O marcador guarda os horários do disparo. Se o background for reiniciado, a extensão pode reconstruir os temporizadores a partir dos metadados da cena e concluir a restauração quando voltar a estar ativa. Os clientes também observam alterações nos itens da cena, o que fornece uma via adicional de recuperação caso a mensagem de sincronização não chegue.
 
-## Testes locais
+Se todos os clientes com a extensão forem fechados ou desconectados, a restauração não pode ocorrer enquanto não houver um processo ativo e autorizado. A recuperação acontece quando a extensão volta a executar e a cena é carregada.
+
+## Testes
 
 Requer Node.js 20 ou superior. Não é necessário instalar dependências.
 
-- npm run check: sintaxe JavaScript e verificações do manifesto/arquivos.
-- npm test: testes unitários dos tempos, origem do token de animação, arbitragem e restauração segura.
+- npm run check: sintaxe JavaScript, manifesto, permissões, arquivos, URLs e configuração de publicação.
+- npm test: testes unitários de cronograma, validação dos recursos, seleção de tokens, restauração segura e arbitragem de concorrência.
 
-Os testes unitários e estáticos não substituem o teste prático dentro de uma sala real do Owlbear Rodeo.
+Os testes automatizados não substituem um teste prático dentro de uma sala real do Owlbear Rodeo com múltiplos jogadores, permissões distintas e reprodução de áudio habilitada.
 
 ## Áudio
 

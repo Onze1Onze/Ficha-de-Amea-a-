@@ -4,11 +4,47 @@ export const SHOT_AFTER_SOUND_MS = SHOT_DURATION_MS - SHOT_SOUND_DELAY_MS;
 export const CLAIM_SETTLE_MS = 450;
 export const LEASE_TTL_MS = 8000;
 
+export function createShotTiming(startedAt = Date.now()) {
+  if (!Number.isFinite(startedAt) || startedAt < 0) {
+    throw new RangeError("startedAt precisa ser um timestamp válido.");
+  }
+
+  return {
+    startedAt,
+    soundAt: startedAt + SHOT_SOUND_DELAY_MS,
+    restoreAt: startedAt + SHOT_DURATION_MS,
+  };
+}
+
+export function isValidShotSchedule(shot) {
+  return Boolean(
+    shot &&
+    typeof shot.shotId === "string" &&
+    shot.shotId.length > 0 &&
+    typeof shot.characterId === "string" &&
+    shot.characterId.length > 0 &&
+    typeof shot.markerKey === "string" &&
+    shot.markerKey.length > 0 &&
+    shot.temporaryImage &&
+    typeof shot.temporaryImage.url === "string" &&
+    shot.temporaryImage.url.length > 0 &&
+    typeof shot.temporaryImage.mime === "string" &&
+    shot.temporaryImage.mime.length > 0 &&
+    Number.isFinite(shot.startedAt) &&
+    Number.isFinite(shot.soundAt) &&
+    Number.isFinite(shot.restoreAt) &&
+    shot.startedAt >= 0 &&
+    shot.soundAt >= shot.startedAt &&
+    shot.restoreAt >= shot.soundAt
+  );
+}
+
 export function isUsableImage(item) {
   return Boolean(
     item &&
     item.type === "IMAGE" &&
     typeof item.id === "string" &&
+    item.id.length > 0 &&
     item.image &&
     typeof item.image.url === "string" &&
     item.image.url.length > 0
@@ -46,26 +82,31 @@ export function compareClaims(a, b) {
   const timeA = Number.isFinite(a?.createdAt) ? a.createdAt : 0;
   const timeB = Number.isFinite(b?.createdAt) ? b.createdAt : 0;
   if (timeA !== timeB) return timeA - timeB;
+
   const ownerA = String(a?.connectionId ?? "");
   const ownerB = String(b?.connectionId ?? "");
   if (ownerA !== ownerB) return ownerA.localeCompare(ownerB);
+
   return String(a?.shotId ?? "").localeCompare(String(b?.shotId ?? ""));
 }
 
 export function canRestoreShot(item, shot) {
-  if (!isUsableImage(item) || !shot || !shot.shotId) return false;
+  if (!isUsableImage(item) || !isValidShotSchedule(shot)) return false;
   const marker = item.metadata?.[shot.markerKey];
+
   return Boolean(
     marker &&
     marker.shotId === shot.shotId &&
-    item.image.url === shot.temporaryImage?.url &&
-    item.image.mime === shot.temporaryImage?.mime
+    item.image.url === shot.temporaryImage.url &&
+    item.image.mime === shot.temporaryImage.mime
   );
 }
 
 export function hasShotMarker(item, shot) {
   return Boolean(
     item &&
+    shot &&
+    typeof shot.markerKey === "string" &&
     item.metadata?.[shot.markerKey]?.shotId === shot.shotId
   );
 }
