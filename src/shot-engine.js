@@ -110,3 +110,48 @@ export function hasShotMarker(item, shot) {
     item.metadata?.[shot.markerKey]?.shotId === shot.shotId
   );
 }
+
+export function createShotFromMarker(item, markerKey, now = Date.now()) {
+  if (!isUsableImage(item) || typeof markerKey !== "string" || !markerKey) return null;
+
+  const marker = item.metadata?.[markerKey];
+  if (!marker || typeof marker.shotId !== "string" || !marker.shotId) return null;
+
+  const originalImage = marker.originalImage;
+  const temporaryImage = marker.temporaryImage;
+  if (
+    !originalImage ||
+    typeof originalImage.url !== "string" ||
+    !originalImage.url ||
+    typeof originalImage.mime !== "string" ||
+    !originalImage.mime ||
+    !temporaryImage ||
+    typeof temporaryImage.url !== "string" ||
+    !temporaryImage.url ||
+    typeof temporaryImage.mime !== "string" ||
+    !temporaryImage.mime ||
+    !Number.isFinite(now) ||
+    now < 0
+  ) {
+    return null;
+  }
+
+  const hasStartTime = Number.isFinite(marker.startedAt);
+  const startedAt = hasStartTime ? marker.startedAt : now;
+  const fallbackTiming = hasStartTime
+    ? createShotTiming(startedAt)
+    : { startedAt, soundAt: startedAt, restoreAt: startedAt };
+
+  const shot = {
+    shotId: marker.shotId,
+    characterId: item.id,
+    markerKey,
+    temporaryImage: { url: temporaryImage.url, mime: temporaryImage.mime },
+    startedAt,
+    soundAt: Number.isFinite(marker.soundAt) ? marker.soundAt : fallbackTiming.soundAt,
+    restoreAt: Number.isFinite(marker.restoreAt) ? marker.restoreAt : fallbackTiming.restoreAt,
+    connectionId: typeof marker.connectionId === "string" ? marker.connectionId : "",
+  };
+
+  return isValidShotSchedule(shot) ? shot : null;
+}

@@ -5,6 +5,7 @@ import {
   SHOT_DURATION_MS,
   SHOT_AFTER_SOUND_MS,
   createShotTiming,
+  createShotFromMarker,
   isValidShotSchedule,
   isUsableImage,
   isUsableLibraryCharacter,
@@ -78,6 +79,79 @@ test("reconhece cronograma completo e rejeita dados incompletos", () => {
   assert.equal(isValidShotSchedule({ ...validSchedule(), restoreAt: NaN }), false);
   assert.equal(isValidShotSchedule({ ...validSchedule(), soundAt: 999 }), false);
   assert.equal(isValidShotSchedule({ ...validSchedule(), restoreAt: 1999 }), false);
+});
+
+test("reconstrói horários persistidos a partir do marcador da cena", () => {
+  const current = {
+    ...image("character"),
+    image: { url: "https://assets.test/flash.png", mime: "image/png" },
+    metadata: {
+      "extension/active-shot": {
+        shotId: "persisted-shot",
+        originalImage: { url: "https://assets.test/original.png", mime: "image/png" },
+        temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
+        startedAt: 10_000,
+        soundAt: 11_000,
+        restoreAt: 14_000,
+        connectionId: "player-1",
+      },
+    },
+  };
+
+  assert.deepEqual(createShotFromMarker(current, "extension/active-shot", 20_000), {
+    shotId: "persisted-shot",
+    characterId: "character",
+    markerKey: "extension/active-shot",
+    temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
+    startedAt: 10_000,
+    soundAt: 11_000,
+    restoreAt: 14_000,
+    connectionId: "player-1",
+  });
+});
+
+test("marcador antigo sem horários agenda restauração imediata sem tocar áudio atrasado", () => {
+  const current = {
+    ...image("character"),
+    metadata: {
+      "extension/active-shot": {
+        shotId: "legacy-shot",
+        originalImage: { url: "https://assets.test/original.png", mime: "image/png" },
+        temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
+      },
+    },
+  };
+
+  assert.deepEqual(createShotFromMarker(current, "extension/active-shot", 30_000), {
+    shotId: "legacy-shot",
+    characterId: "character",
+    markerKey: "extension/active-shot",
+    temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
+    startedAt: 30_000,
+    soundAt: 30_000,
+    restoreAt: 30_000,
+    connectionId: "",
+  });
+});
+
+test("ignora marcadores ausentes, incompletos ou com dados inválidos", () => {
+  assert.equal(createShotFromMarker(image("character"), "extension/active-shot", 100), null);
+  assert.equal(createShotFromMarker(null, "extension/active-shot", 100), null);
+  assert.equal(createShotFromMarker(image("character"), "", 100), null);
+  assert.equal(createShotFromMarker(image("character"), "extension/active-shot", NaN), null);
+
+  const malformed = {
+    ...image("character"),
+    metadata: {
+      "extension/active-shot": {
+        shotId: "bad-shot",
+        originalImage: { url: "", mime: "image/png" },
+        temporaryImage: { url: "https://assets.test/flash.png", mime: "image/png" },
+      },
+    },
+  };
+
+  assert.equal(createShotFromMarker(malformed, "extension/active-shot", 100), null);
 });
 
 test("aceita imagem real da cena com URL válida", () => {

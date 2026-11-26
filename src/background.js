@@ -1,8 +1,8 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 import {
   SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
-  createShotTiming, isValidShotSchedule, canStartShot, compareClaims,
-  canRestoreShot,
+  createShotTiming, createShotFromMarker, isValidShotSchedule, canStartShot,
+  compareClaims, canRestoreShot,
 } from "./shot-engine.js";
 
 const ID = "com.onze1.sistema-ameaca";
@@ -124,49 +124,8 @@ function scheduleSound(shot) {
   soundTimers.set(shot.shotId, timer);
 }
 
-function shotFromMarker(item) {
-  const marker = item?.metadata?.[MARKER];
-  if (!marker || typeof marker.shotId !== "string" || !marker.shotId) return null;
-
-  const originalImage = marker.originalImage;
-  const temporaryImage = marker.temporaryImage;
-  if (
-    !originalImage ||
-    typeof originalImage.url !== "string" ||
-    !originalImage.url ||
-    typeof originalImage.mime !== "string" ||
-    !originalImage.mime ||
-    !temporaryImage ||
-    typeof temporaryImage.url !== "string" ||
-    !temporaryImage.url ||
-    typeof temporaryImage.mime !== "string" ||
-    !temporaryImage.mime
-  ) {
-    return null;
-  }
-
-  const hasStartTime = Number.isFinite(marker.startedAt);
-  const startedAt = hasStartTime ? marker.startedAt : Date.now();
-  const fallbackTiming = hasStartTime
-    ? createShotTiming(startedAt)
-    : { startedAt, soundAt: startedAt, restoreAt: startedAt };
-
-  const shot = {
-    shotId: marker.shotId,
-    characterId: item.id,
-    markerKey: MARKER,
-    temporaryImage: { url: temporaryImage.url, mime: temporaryImage.mime },
-    startedAt,
-    soundAt: Number.isFinite(marker.soundAt) ? marker.soundAt : fallbackTiming.soundAt,
-    restoreAt: Number.isFinite(marker.restoreAt) ? marker.restoreAt : fallbackTiming.restoreAt,
-    connectionId: typeof marker.connectionId === "string" ? marker.connectionId : "",
-  };
-
-  return isValidShotSchedule(shot) ? shot : null;
-}
-
 function adoptShotMarker(item, force = false) {
-  const shot = shotFromMarker(item);
+  const shot = createShotFromMarker(item, MARKER);
   if (!shot) return;
 
   if (force || !scheduled.has(shot.shotId)) {
