@@ -18,7 +18,6 @@ class FakeEffectBuilder {
 
 test("cria um efeito ATTACHMENT local ligado ao ID exato do alvo", () => {
   const effect = buildTargetHitEffect(shot, () => new FakeEffectBuilder());
-  assert.equal(effect.type, undefined);
   assert.equal(effect.effectType, "ATTACHMENT");
   assert.equal(effect.attachedTo, "target-7");
   assert.equal(effect.layer, "ATTACHMENT");

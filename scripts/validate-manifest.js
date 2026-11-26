@@ -79,4 +79,4 @@ const uniqueArtifact = "pages-$" + "{{ github.run_id }}-$" + "{{ github.run_atte
 assert.ok(workflow.includes("name: " + uniqueArtifact), "o nome do artefato precisa variar por execução/tentativa");
 assert.ok(workflow.includes("artifact_name: " + uniqueArtifact), "deploy-pages precisa consumir o artefato exclusivo da tentativa");
 assert.ok(!workflow.includes("npm run prepare:audio"), "o runner não deve tentar baixar MP3 sem chave");
-console.log("Manifesto 1.0.1, versões, permissões, URLs, SDK, pré-carregamento, espera por canplay, reprodução, recuperação e publicação verificados.");
+console.log("Manifesto 1.0.2, versões, permissões, URLs, SDK, áudio, shader de impacto, janela de 1 segundo, anexação local e publicação verificados.");
