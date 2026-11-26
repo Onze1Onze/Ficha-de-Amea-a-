@@ -160,7 +160,8 @@ test("marcador antigo sem horários agenda restauração imediata sem tocar áud
     },
   };
 
-  assert.deepEqual(createShotFromMarker(current, "extension/active-shot", 30_000), {
+  const recovered = createShotFromMarker(current, "extension/active-shot", 30_000);
+  assert.deepEqual(recovered, {
     shotId: "legacy-shot",
     characterId: "character",
     markerKey: "extension/active-shot",
@@ -171,6 +172,8 @@ test("marcador antigo sem horários agenda restauração imediata sem tocar áud
     restoreAt: 30_000,
     connectionId: "",
   });
+  assert.equal(isValidShotSchedule(recovered), true);
+  assert.equal(shouldScheduleCasingSound(recovered, 30_000), false);
 });
 
 test("ignora marcadores ausentes, incompletos ou com dados inválidos", () => {

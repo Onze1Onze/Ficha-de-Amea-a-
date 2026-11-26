@@ -47,7 +47,7 @@ export function isValidShotSchedule(shot) {
     shot.startedAt >= 0 &&
     shot.soundAt >= shot.startedAt &&
     casingAt >= shot.soundAt &&
-    shot.restoreAt > casingAt
+    shot.restoreAt >= casingAt
   );
 }
 
