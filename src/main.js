@@ -14,6 +14,7 @@ const animationHint = document.querySelector("#animation-hint");
 let sceneItems = [];
 let selectedAnimation = null;
 let requestInFlight = false;
+let libraryPickerInFlight = false;
 let unsubscribeItems = null;
 let unsubscribeScene = null;
 let unsubscribeEvents = null;
@@ -56,7 +57,7 @@ function updateButtonState() {
   const character = getSelected(characterSelect.value);
   const target = getSelected(targetSelect.value);
   fireButton.disabled = !Boolean(character && target && selectedAnimation && !requestInFlight);
-  chooseAnimationButton.disabled = requestInFlight;
+  chooseAnimationButton.disabled = requestInFlight || libraryPickerInFlight;
 
   if (!selectedAnimation) {
     animationHint.textContent = "Nenhum token selecionado. Escolha um recurso da biblioteca de personagens.";
@@ -104,40 +105,89 @@ async function refreshItems() {
   });
 }
 
-async function chooseLibraryAnimation() {
-  if (requestInFlight) return;
+function getErrorDetails(error) {
+  if (error instanceof Error) {
+    return error.name + ": " + (error.message || "sem mensagem");
+  }
+  if (typeof error === "string") return error;
   try {
-    const downloads = await OBR.assets.downloadImages(false, "", "CHARACTER");
-    const asset = Array.isArray(downloads) ? downloads[0] : null;
-    if (!asset) return;
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
-    if (
-      asset.type !== "CHARACTER" ||
-      !asset.image ||
-      typeof asset.image.url !== "string" ||
-      !asset.image.url ||
-      typeof asset.image.mime !== "string"
-    ) {
-      setStatus("O recurso escolhido não é um token válido da biblioteca de personagens.", "error");
+async function chooseLibraryAnimation() {
+  if (requestInFlight || libraryPickerInFlight) return;
+
+  if (!OBR.isReady || !OBR.assets || typeof OBR.assets.downloadImages !== "function") {
+    setStatus("O SDK do Owlbear não disponibilizou o seletor de imagens. Feche e reabra a extensão.", "error");
+    return;
+  }
+
+  libraryPickerInFlight = true;
+  updateButtonState();
+  setStatus("Abrindo biblioteca de personagens…");
+
+  try {
+    let downloads;
+
+    try {
+      // O filtro CHARACTER abre diretamente na categoria de personagens.
+      // O segundo argumento é omitido deliberadamente: não há busca inicial.
+      downloads = await OBR.assets.downloadImages(false, undefined, "CHARACTER");
+    } catch (filteredError) {
+      console.warn("Sistema Ameaça: seletor com filtro CHARACTER falhou; tentando sem filtro.", filteredError);
+      // Alguns ambientes/versões do Owlbear podem não aplicar o typeHint.
+      // A seleção ainda é validada como CHARACTER antes de ser aceita.
+      downloads = await OBR.assets.downloadImages(false);
+    }
+
+    if (!Array.isArray(downloads)) {
+      throw new TypeError("O seletor do Owlbear não retornou uma lista de imagens.");
+    }
+
+    if (downloads.length === 0) {
+      setStatus("Nenhum token selecionado. A biblioteca continua disponível para uma nova tentativa.");
+      return;
+    }
+
+    const asset = downloads.find((candidate) =>
+      candidate &&
+      candidate.type === "CHARACTER" &&
+      candidate.image &&
+      typeof candidate.image.url === "string" &&
+      candidate.image.url.length > 0 &&
+      typeof candidate.image.mime === "string" &&
+      candidate.image.mime.length > 0
+    );
+
+    if (!asset) {
+      setStatus("O item escolhido não é um token válido da categoria Personagens. Abra a aba Personagens e tente novamente.", "error");
       return;
     }
 
     selectedAnimation = {
-      name: typeof asset.name === "string" && asset.name.trim() ? asset.name.trim() : "Token da biblioteca",
+      name: typeof asset.name === "string" && asset.name.trim()
+        ? asset.name.trim()
+        : "Token da biblioteca",
       type: asset.type,
       image: {
         url: asset.image.url,
         mime: asset.image.mime,
       },
     };
-    updateButtonState();
+
     setStatus("Token da biblioteca selecionado.", "success");
   } catch (error) {
-    console.error("Sistema Ameaça: falha ao selecionar recurso da biblioteca", error);
-    setStatus("Não foi possível abrir a biblioteca de personagens.", "error");
+    const details = getErrorDetails(error);
+    console.error("Sistema Ameaça: falha ao selecionar recurso da biblioteca:", error);
+    setStatus("Falha ao abrir a biblioteca: " + details, "error");
+  } finally {
+    libraryPickerInFlight = false;
+    updateButtonState();
   }
 }
-
 function handleExtensionEvent(event) {
   const data = event.data;
   if (data?.type !== "status" || !data.requestId) return;
