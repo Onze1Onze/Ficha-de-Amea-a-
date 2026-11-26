@@ -1,5 +1,5 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
-import { createAudioPlayer, playPreparedAudio } from "./audio-player.js";
+import { createAudioPlayer, playPreparedAudio, waitForAudioReady } from "./audio-player.js";
 import {
   SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CASING_SOUND_DELAY_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
   createShotTiming, createShotFromMarker, isValidShotSchedule, shouldScheduleShotSound, shouldScheduleCasingSound, getCasingSoundAt,
@@ -13,7 +13,7 @@ const EVENTS = ID + "/events";
 const MARKER = ID + "/active-shot";
 const LEASE = ID + "/scene-lease";
 const SHOT_AUDIO_URL = new URL("../audio/shotgun-20-gauge.mp3", import.meta.url).href;
-const CASING_AUDIO_URL = new URL("../audio/bullet-casing-metal.mp3", import.meta.url).href;
+const CASING_AUDIO_URL = "https://sfxmint.com/dl/bullet-casing-06.mp3";
 
 // Os dois elementos são preparados uma única vez antes do primeiro disparo.
 // Assim, o temporizador não precisa criar nem iniciar o carregamento do áudio.
@@ -296,6 +296,17 @@ async function fire(request) {
 
     if (role !== "GM" && !(await OBR.player.hasPermission("CHARACTER_UPDATE"))) {
       await reply(requestId, false, "A sala não permite que este jogador atualize tokens de personagem.");
+      return;
+    }
+
+    try {
+      await Promise.all([
+        waitForAudioReady(shotAudioPlayer, 7000),
+        waitForAudioReady(casingAudioPlayer, 7000),
+      ]);
+    } catch (audioError) {
+      console.warn("Sistema Ameaça: os efeitos sonoros não ficaram prontos a tempo", audioError);
+      await reply(requestId, false, "Os efeitos sonoros ainda não carregaram. Verifique a conexão e tente novamente.");
       return;
     }
 

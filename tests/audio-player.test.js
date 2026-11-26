@@ -1,18 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAudioPlayer, playPreparedAudio } from "../src/audio-player.js";
-import { hasMpegAudioFrame, validateMp3Buffer } from "../scripts/audio-validation.js";
+import { createAudioPlayer, playPreparedAudio, waitForAudioReady } from "../src/audio-player.js";
 
 class FakeAudio {
-  constructor(url) { this.src = url; this.preload = "none"; this.currentTime = 3; this.volume = 0; this.loaded = 0; this.paused = 0; this.played = 0; }
+  constructor(url) {
+    this.src = url;
+    this.preload = "none";
+    this.currentTime = 3;
+    this.volume = 0;
+    this.loaded = 0;
+    this.paused = 0;
+    this.played = 0;
+    this.readyState = 4;
+    this.error = null;
+    this.listeners = new Map();
+  }
   load() { this.loaded += 1; }
   pause() { this.paused += 1; }
   async play() { this.played += 1; }
+  addEventListener(name, callback) {
+    const listeners = this.listeners.get(name) ?? new Set();
+    listeners.add(callback);
+    this.listeners.set(name, listeners);
+  }
+  removeEventListener(name, callback) { this.listeners.get(name)?.delete(callback); }
+  emit(name) { for (const callback of [...(this.listeners.get(name) ?? [])]) callback(); }
 }
 
 test("cria o reprodutor com preload automático e inicia o carregamento uma única vez", () => {
-  const audio = createAudioPlayer("/audio/bullet-casing-metal.mp3", FakeAudio);
-  assert.equal(audio.src, "/audio/bullet-casing-metal.mp3");
+  const audio = createAudioPlayer("/audio/shotgun.mp3", FakeAudio);
+  assert.equal(audio.src, "/audio/shotgun.mp3");
   assert.equal(audio.preload, "auto");
   assert.equal(audio.loaded, 1);
 });
@@ -20,7 +37,30 @@ test("rejeita URL vazia e construtor de áudio indisponível", () => {
   assert.throws(() => createAudioPlayer("", FakeAudio), TypeError);
   assert.throws(() => createAudioPlayer("/sound.mp3", null), TypeError);
 });
-test("reinicia o áudio e aplica volume antes de reproduzir", async () => {
+test("reconhece imediatamente um arquivo que já tem dados suficientes para tocar", async () => {
+  await waitForAudioReady(new FakeAudio("/sound.mp3"));
+});
+test("aguarda canplay antes de liberar a reprodução", async () => {
+  const audio = new FakeAudio("/sound.mp3");
+  audio.readyState = 0;
+  const ready = waitForAudioReady(audio, 100);
+  audio.readyState = 3;
+  audio.emit("canplay");
+  await ready;
+  assert.equal(audio.listeners.get("canplay")?.size ?? 0, 0);
+});
+test("rejeita erro de rede/mídia e timeout de carregamento", async () => {
+  const failed = new FakeAudio("/broken.mp3");
+  failed.readyState = 0;
+  const failedPromise = waitForAudioReady(failed, 100);
+  failed.emit("error");
+  await assert.rejects(failedPromise, /carregar o recurso/);
+
+  const slow = new FakeAudio("/slow.mp3");
+  slow.readyState = 0;
+  await assert.rejects(waitForAudioReady(slow, 5), /Tempo esgotado/);
+});
+test("reinicia o áudio e aplica volume depois de o arquivo estar pronto", async () => {
   const audio = new FakeAudio("/sound.mp3");
   await playPreparedAudio(audio, 0.85);
   assert.equal(audio.paused, 1);
@@ -28,33 +68,16 @@ test("reinicia o áudio e aplica volume antes de reproduzir", async () => {
   assert.equal(audio.volume, 0.85);
   assert.equal(audio.played, 1);
 });
-test("rejeita volume fora do intervalo permitido", async () => {
+test("rejeita volume fora do intervalo permitido e reprodutor incompleto", async () => {
   const audio = new FakeAudio("/sound.mp3");
   await assert.rejects(playPreparedAudio(audio, -0.01), RangeError);
   await assert.rejects(playPreparedAudio(audio, 1.01), RangeError);
-  assert.equal(audio.played, 0);
-});
-test("rejeita um reprodutor incompleto", async () => {
   await assert.rejects(playPreparedAudio(null), TypeError);
-  await assert.rejects(playPreparedAudio({ play() {} }), TypeError);
+  assert.equal(audio.played, 0);
 });
 test("propaga falhas reais de play() para o tratamento de erro do serviço", async () => {
   const failure = new Error("NotSupportedError");
-  const audio = { currentTime: 5, volume: 0, pause() {}, async play() { throw failure; } };
+  const audio = new FakeAudio("/broken.mp3");
+  audio.play = async () => { throw failure; };
   await assert.rejects(playPreparedAudio(audio), error => error === failure);
-});
-test("reconhece um quadro MPEG válido mesmo após uma etiqueta ID3", () => {
-  const buffer = Buffer.alloc(4096);
-  buffer.write("ID3", 0, "ascii");
-  buffer[128] = 0xff; buffer[129] = 0xfb; buffer[130] = 0x90; buffer[131] = 0x64;
-  assert.equal(hasMpegAudioFrame(buffer), true);
-  assert.equal(validateMp3Buffer(buffer), true);
-});
-test("rejeita HTML de erro, dados truncados e buffers que não são MP3", () => {
-  const html = Buffer.from("<html>404 not found</html>");
-  const tooSmall = Buffer.alloc(100);
-  const invalid = Buffer.alloc(4096, 0x41);
-  assert.throws(() => validateMp3Buffer(html), RangeError);
-  assert.throws(() => validateMp3Buffer(tooSmall), RangeError);
-  assert.throws(() => validateMp3Buffer(invalid), TypeError);
 });

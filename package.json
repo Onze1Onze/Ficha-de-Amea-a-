@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:audio": "node scripts/prepare-audio.js",
-    "check": "node --check src/main.js && node --check src/background.js && node --check src/audio-player.js && node --check src/shot-engine.js && node --check scripts/prepare-audio.js && node --check scripts/audio-validation.js && node --check scripts/validate-manifest.js && node scripts/validate-manifest.js",
+    "check": "node --check src/main.js && node --check src/background.js && node --check src/audio-player.js && node --check src/shot-engine.js && node --check scripts/validate-manifest.js && node scripts/validate-manifest.js",
     "test": "node --test"
   }
 }
