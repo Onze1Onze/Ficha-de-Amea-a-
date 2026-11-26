@@ -155,3 +155,13 @@ export function createShotFromMarker(item, markerKey, now = Date.now()) {
 
   return isValidShotSchedule(shot) ? shot : null;
 }
+
+
+export function shouldScheduleShotSound(shot, now = Date.now()) {
+  return Boolean(
+    isValidShotSchedule(shot) &&
+    Number.isFinite(now) &&
+    now >= 0 &&
+    now < shot.soundAt
+  );
+}

@@ -1,8 +1,8 @@
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 import {
   SHOT_SOUND_DELAY_MS, SHOT_DURATION_MS, CLAIM_SETTLE_MS, LEASE_TTL_MS,
-  createShotTiming, createShotFromMarker, isValidShotSchedule, canStartShot,
-  compareClaims, canRestoreShot,
+  createShotTiming, createShotFromMarker, isValidShotSchedule, shouldScheduleShotSound,
+  canStartShot, compareClaims, canRestoreShot,
 } from "./shot-engine.js";
 
 const ID = "com.onze1.sistema-ameaca";
@@ -132,9 +132,7 @@ function adoptShotMarker(item, force = false) {
     scheduleRestore(shot);
   }
 
-  if (shot.connectionId !== connectionId && Date.now() < shot.soundAt) {
-    scheduleSound(shot);
-  }
+  if (shouldScheduleShotSound(shot)) scheduleSound(shot);
 }
 
 async function reconcileSceneShots() {
@@ -417,9 +415,7 @@ OBR.onReady(async () => {
       if (!isValidShotSchedule(shot)) return;
 
       if (!scheduled.has(shot.shotId)) scheduleRestore(shot);
-      if (data.connectionId !== connectionId && Date.now() < shot.soundAt) {
-        scheduleSound(shot);
-      }
+      if (shouldScheduleShotSound(shot)) scheduleSound(shot);
     });
 
     OBR.scene.items.onChange(items => {

@@ -6,6 +6,7 @@ import {
   SHOT_AFTER_SOUND_MS,
   createShotTiming,
   createShotFromMarker,
+  shouldScheduleShotSound,
   isValidShotSchedule,
   isUsableImage,
   isUsableLibraryCharacter,
@@ -79,6 +80,15 @@ test("reconhece cronograma completo e rejeita dados incompletos", () => {
   assert.equal(isValidShotSchedule({ ...validSchedule(), restoreAt: NaN }), false);
   assert.equal(isValidShotSchedule({ ...validSchedule(), soundAt: 999 }), false);
   assert.equal(isValidShotSchedule({ ...validSchedule(), restoreAt: 1999 }), false);
+});
+
+test("retoma o som durante recuperação somente enquanto o horário ainda está no futuro", () => {
+  const shot = validSchedule();
+  assert.equal(shouldScheduleShotSound(shot, 1999), true);
+  assert.equal(shouldScheduleShotSound(shot, 2000), false);
+  assert.equal(shouldScheduleShotSound(shot, 2001), false);
+  assert.equal(shouldScheduleShotSound(null, 1000), false);
+  assert.equal(shouldScheduleShotSound(shot, Number.NaN), false);
 });
 
 test("reconstrói horários persistidos a partir do marcador da cena", () => {
