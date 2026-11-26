@@ -55,6 +55,7 @@ assert.ok(background.includes("SHOT_SOUND_DELAY_MS"));
 assert.ok(background.includes("SHOT_DURATION_MS"));
 assert.ok(background.includes("shotgun-20-gauge.mp3"));
 assert.ok(background.includes("https://sfxmint.com/dl/bullet-casing-08.mp3"));
+assert.ok(background.includes("casingAudioPlayer.load()"));
 assert.ok(background.includes("scheduleCasingSound"));
 assert.ok(background.includes("reconcileSceneShots"));
 assert.ok(background.includes("OBR.scene.items.updateItems"));

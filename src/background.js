@@ -13,6 +13,9 @@ const MARKER = ID + "/active-shot";
 const LEASE = ID + "/scene-lease";
 const AUDIO = new URL("../audio/shotgun-20-gauge.mp3", import.meta.url).href;
 const CASING_AUDIO = "https://sfxmint.com/dl/bullet-casing-08.mp3";
+const casingAudioPlayer = new Audio(CASING_AUDIO);
+casingAudioPlayer.preload = "auto";
+casingAudioPlayer.load();
 
 const claims = new Map();
 const timers = new Map();
@@ -109,7 +112,11 @@ async function playAudioForShot(shot, url, volume, label) {
 
     if (!character || !canRestoreShot(character, shot)) return;
 
-    const audio = new Audio(url);
+    const audio = url === CASING_AUDIO ? casingAudioPlayer : new Audio(url);
+    if (url === CASING_AUDIO) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
     audio.volume = volume;
     audio.preload = "auto";
     await audio.play();

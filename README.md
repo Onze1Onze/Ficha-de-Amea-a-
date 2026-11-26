@@ -34,7 +34,7 @@ A operação mantém o mesmo item e altera somente a URL e o MIME da imagem, al�
 - background.html, src/background.js: controlador dos temporizadores, áudio, restauração e recuperação de marcadores pendentes.
 - src/shot-engine.js: regras de seleção, cronograma, validação, arbitragem e restauração segura.
 - audio/shotgun-20-gauge.mp3: efeito sonoro local do disparo.
-- Efeito de estojo: MP3 CC0 carregado diretamente da SFXMint; o provedor permite hotlink e o áudio requer conexão com a internet.
+- Efeito de estojo: MP3 CC0 carregado diretamente da SFXMint e pré-carregado ao iniciar o background; o provedor permite hotlink e o áudio requer conexão com a internet.
 - .github/workflows/pages.yml: validação e publicação estática no GitHub Pages.
 
 O projeto usa o SDK oficial @owlbear-rodeo/sdk na versão 3.1.0. Não há etapa de build: os arquivos são estáticos e o GitHub Pages publica a raiz.
