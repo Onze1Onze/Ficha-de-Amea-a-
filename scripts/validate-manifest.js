@@ -9,7 +9,7 @@ const manifest = JSON.parse(read("manifest.json"));
 const packageJson = JSON.parse(read("package.json"));
 
 assert.equal(manifest.manifest_version, 1);
-assert.equal(manifest.version, "1.0.2");
+assert.equal(manifest.version, "1.0.3");
 assert.equal(packageJson.version, manifest.version, "package.json e manifest.json precisam compartilhar a versão");
 assert.ok(manifest.name && manifest.name.length <= 45);
 assert.ok(manifest.description && manifest.description.length <= 128);
@@ -20,8 +20,8 @@ assert.ok(manifest.permissions.some(permission => permission.name === "autoplay"
 
 const required = [
   "index.html", "background.html", "style.css", "icon.svg",
-  "src/main.js", "src/background.js", "src/audio-player.js", "src/shot-engine.js", "src/hit-effect.js",
-  "tests/shot-engine.test.js", "tests/audio-player.test.js", "tests/hit-effect.test.js",
+  "src/main.js", "src/background.js", "src/audio-player.js", "src/shot-engine.js",
+  "tests/shot-engine.test.js", "tests/audio-player.test.js",
 ];
 for (const file of required) {
   assert.ok(existsSync(resolve(root, file)), "arquivo ausente: " + file);
@@ -43,7 +43,6 @@ const background = read("src/background.js");
 const audioPlayer = read("src/audio-player.js");
 const workflow = read(".github/workflows/pages.yml");
 const shotEngine = read("src/shot-engine.js");
-const hitEffect = read("src/hit-effect.js");
 assert.ok(main.includes("@owlbear-rodeo/sdk@3.1.0"));
 assert.ok(background.includes("@owlbear-rodeo/sdk@3.1.0"));
 assert.ok(main.includes("OBR.assets.downloadImages"));
@@ -62,16 +61,6 @@ assert.ok(audioPlayer.includes("audio.load()"));
 assert.ok(background.includes("scheduleCasingSound"));
 assert.ok(background.includes("reconcileSceneShots"));
 assert.ok(background.includes("OBR.scene.items.updateItems"));
-assert.ok(background.includes("shouldShowTargetHitEffect"));
-assert.ok(background.includes("OBR.scene.local.addItems([effect])"));
-assert.ok(background.includes("OBR.scene.local.deleteItems([effect.id])"));
-assert.ok(background.includes("targetId,"));
-assert.ok(shotEngine.includes("TARGET_HIT_EFFECT_DURATION_MS = 1000"));
-assert.ok(hitEffect.includes('.effectType("ATTACHMENT")'));
-assert.ok(hitEffect.includes('.attachedTo(shot.targetId)'));
-assert.ok(hitEffect.includes('.layer("ATTACHMENT")'));
-assert.ok(hitEffect.includes("uniform float startTime;"));
-assert.ok(hitEffect.includes("smoothstep"));
 assert.ok(main.includes("onMessage(EVENT_CHANNEL"));
 assert.ok(shotEngine.includes("CASING_SOUND_DELAY_MS = 450"));
 
@@ -79,4 +68,11 @@ const uniqueArtifact = "pages-$" + "{{ github.run_id }}-$" + "{{ github.run_atte
 assert.ok(workflow.includes("name: " + uniqueArtifact), "o nome do artefato precisa variar por execução/tentativa");
 assert.ok(workflow.includes("artifact_name: " + uniqueArtifact), "deploy-pages precisa consumir o artefato exclusivo da tentativa");
 assert.ok(!workflow.includes("npm run prepare:audio"), "o runner não deve tentar baixar MP3 sem chave");
-console.log("Manifesto 1.0.2, versões, permissões, URLs, SDK, áudio, shader de impacto, janela de 1 segundo, anexação local e publicação verificados.");
+assert.equal(existsSync(resolve(root, "src/hit-effect.js")), false, "código de efeitos visuais removido");
+assert.equal(existsSync(resolve(root, "tests/hit-effect.test.js")), false, "testes de efeitos visuais removidos");
+assert.ok(!read("index.html").includes("target"), "painel não pode oferecer seleção de alvo");
+assert.ok(!main.includes("targetId") && !main.includes("targetSelect"), "painel não pode solicitar nem transmitir alvo");
+assert.ok(!background.includes("targetId") && !background.includes("buildEffect") && !background.includes("showTargetHitEffect"), "background não pode consultar ou gerar efeitos em alvo");
+assert.ok(!background.includes("OBR.scene.local.addItems") && !background.includes("OBR.scene.local.deleteItems"), "background não pode criar nem remover efeitos locais");
+assert.ok(!shotEngine.includes("TargetHitEffect") && !shotEngine.includes("targetId"), "motor não pode conter lógica de efeitos/alvos");
+console.log("Manifesto 1.0.3, áudio, restauração e ausência total de seleção/efeitos em alvos verificados.");

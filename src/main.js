@@ -1,3 +1,17 @@
+function updateButtonState() {
+  const character = getSelected(characterSelect.value);
+  fireButton.disabled = !Boolean(
+    character && selectedAnimation && !requestInFlight && !libraryPickerInFlight
+  );
+  chooseAnimationButton.disabled = requestInFlight || libraryPickerInFlight;
+
+  if (!selectedAnimation) {
+    animationHint.textContent = "Nenhum token selecionado. Escolha um recurso da biblioteca de personagens.";
+  } else {
+    animationHint.textContent = "Biblioteca de personagens: " + selectedAnimation.name;
+  }
+}
+
 import OBR, { isImage } from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 import { isUsableLibraryCharacter } from "./shot-engine.js";
 
@@ -6,7 +20,6 @@ const REQUEST_CHANNEL = EXTENSION_ID + "/request";
 const EVENT_CHANNEL = EXTENSION_ID + "/events";
 
 const characterSelect = document.querySelector("#character");
-const targetSelect = document.querySelector("#target");
 const chooseAnimationButton = document.querySelector("#choose-animation");
 const fireButton = document.querySelector("#fire");
 const statusNode = document.querySelector("#status");
@@ -55,34 +68,17 @@ function getSelected(id) {
   return sceneItems.find((item) => item.id === id);
 }
 
-function updateButtonState() {
-  const character = getSelected(characterSelect.value);
-  const target = getSelected(targetSelect.value);
-  fireButton.disabled = !Boolean(
-    character && target && selectedAnimation && !requestInFlight && !libraryPickerInFlight
-  );
-  chooseAnimationButton.disabled = requestInFlight || libraryPickerInFlight;
-
-  if (!selectedAnimation) {
-    animationHint.textContent = "Nenhum token selecionado. Escolha um recurso da biblioteca de personagens.";
-  } else {
-    animationHint.textContent = "Biblioteca de personagens: " + selectedAnimation.name;
-  }
-}
-
 async function refreshItemsOnce() {
   try {
     if (!(await OBR.scene.isReady())) {
       sceneItems = [];
       fillSelect(characterSelect, [], "Cena indisponível", "");
-      fillSelect(targetSelect, [], "Cena indisponível", "");
       updateButtonState();
       return;
     }
 
     const previous = {
       character: characterSelect.value,
-      target: targetSelect.value,
     };
     const nextItems = await OBR.scene.items.getItems(isImage);
     sceneItems = nextItems.filter(
@@ -92,18 +88,14 @@ async function refreshItemsOnce() {
     const characters = sceneItems.filter(
       (item) => item.layer === "CHARACTER" && item.visible !== false && !item.locked
     );
-    const targets = sceneItems.filter(
-      (item) => item.visible !== false && item.layer !== "MAP"
-    );
+
 
     fillSelect(characterSelect, characters, "Selecione um personagem…", previous.character);
-    fillSelect(targetSelect, targets, "Selecione um alvo…", previous.target);
     updateButtonState();
   } catch (error) {
     console.error("Sistema Ameaça: falha ao atualizar os tokens", error);
     sceneItems = [];
     fillSelect(characterSelect, [], "Não foi possível carregar", "");
-    fillSelect(targetSelect, [], "Não foi possível carregar", "");
     updateButtonState();
     setStatus("Não foi possível ler os tokens da cena. Tente novamente.", "error");
   }
@@ -216,18 +208,12 @@ fireButton.addEventListener("click", async () => {
   if (requestInFlight || libraryPickerInFlight) return;
 
   const characterId = characterSelect.value;
-  const targetId = targetSelect.value;
   const character = getSelected(characterId);
-  const target = getSelected(targetId);
   const animation = selectedAnimation;
 
-  if (!character || !target || !animation) {
-    setStatus("Selecione personagem, alvo e um token da biblioteca.", "error");
+  if (!character || !animation) {
+    setStatus("Selecione um personagem e um token da biblioteca.", "error");
     updateButtonState();
-    return;
-  }
-  if (characterId === targetId) {
-    setStatus("O personagem não pode ser o próprio alvo.", "error");
     return;
   }
   if (character.image.url === animation.image.url) {
@@ -251,7 +237,7 @@ fireButton.addEventListener("click", async () => {
   try {
     await OBR.broadcast.sendMessage(
       REQUEST_CHANNEL,
-      { type: "fire", requestId, characterId, targetId, animation },
+      { type: "fire", requestId, characterId, animation },
       { destination: "LOCAL" }
     );
   } catch (error) {
@@ -266,7 +252,6 @@ fireButton.addEventListener("click", async () => {
 
 chooseAnimationButton.addEventListener("click", () => void chooseLibraryAnimation());
 characterSelect.addEventListener("change", updateButtonState);
-targetSelect.addEventListener("change", updateButtonState);
 
 OBR.onReady(async () => {
   try {

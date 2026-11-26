@@ -1,10 +1,10 @@
 {
   "name": "sistema-ameaca-owlbear",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check src/main.js && node --check src/background.js && node --check src/audio-player.js && node --check src/shot-engine.js && node --check src/hit-effect.js && node --check scripts/validate-manifest.js && node scripts/validate-manifest.js",
+    "check": "node --check src/main.js && node --check src/background.js && node --check src/audio-player.js && node --check src/shot-engine.js && node --check scripts/validate-manifest.js && node scripts/validate-manifest.js",
     "test": "node --test"
   }
 }
