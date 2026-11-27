@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#111418" />
+    <title>Token Dinâmico</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">TD</div>
+        <div class="brand-copy">
+          <p class="eyebrow">OWLBEAR RODEO · EXTENSÃO</p>
+          <h1>Token Dinâmico</h1>
+        </div>
+        <span id="connection" class="connection"><i></i> conectando</span>
+      </header>
+
+      <section class="intro">
+        <p>Configure poses e ações para o personagem selecionado. Cada ação usa uma imagem transitória por <strong>4 segundos exatos</strong> e depois aplica o estado final.</p>
+      </section>
+
+      <section class="target-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">PERSONAGEM CONTROLADO</p>
+            <h2 id="target-name">Nenhum token vinculado</h2>
+          </div>
+          <span id="target-layer" class="tag">—</span>
+        </div>
+        <p id="target-description" class="muted">Selecione exatamente um token de personagem na cena e vincule-o abaixo.</p>
+        <button id="bind-selection" class="button button-primary" type="button">VINCULAR TOKEN SELECIONADO</button>
+      </section>
+
+      <section id="workspace" class="workspace is-hidden">
+        <div class="current-state-row">
+          <div>
+            <p class="eyebrow">ESTADO ATUAL</p>
+            <strong id="current-state">Ainda não configurado</strong>
+          </div>
+          <span id="activity" class="activity">INATIVO</span>
+        </div>
+
+        <section class="panel-section" id="states-section">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">01 · APARÊNCIAS</p>
+              <h2>Estados do personagem</h2>
+            </div>
+            <span id="state-count" class="count">0</span>
+          </div>
+          <p class="muted">Crie as poses permanentes: Idle, Idle Pistola, Idle Escopeta, Máscara Colocada, Idle Faca etc.</p>
+          <div class="form-grid">
+            <label class="field field-full">
+              <span>Nome do estado</span>
+              <input id="state-name" maxlength="48" placeholder="Ex.: Idle Pistola" autocomplete="off" />
+            </label>
+            <div class="asset-row field-full">
+              <button id="choose-state-image" class="button button-secondary" type="button">ESCOLHER IMAGEM NA BIBLIOTECA</button>
+              <span id="state-image-label" class="asset-label">Nenhuma imagem escolhida</span>
+            </div>
+            <button id="save-state" class="button button-add field-full" type="button" disabled>＋ ADICIONAR ESTADO</button>
+          </div>
+          <div id="states-list" class="state-list empty-state">Nenhum estado cadastrado.</div>
+        </section>
+
+        <section class="panel-section">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">02 · TROCAS E EQUIPAMENTO</p>
+              <h2>Ações de transição</h2>
+            </div>
+            <span id="transition-count" class="count">0</span>
+          </div>
+          <p class="muted">Exemplo: Idle → Pegando Pistola → Idle Pistola. Use “Qualquer estado” para ações como pegar uma arma ou colocar a máscara.</p>
+          <div class="form-grid">
+            <label class="field field-full">
+              <span>Nome da ação</span>
+              <input id="transition-name" maxlength="48" placeholder="Ex.: Pegar pistola" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Estado de origem</span>
+              <select id="transition-from"><option value="*">Qualquer estado</option></select>
+            </label>
+            <label class="field">
+              <span>Estado final</span>
+              <select id="transition-to"><option value="">Adicione um estado primeiro</option></select>
+            </label>
+            <div class="asset-row field-full">
+              <button id="choose-transition-image" class="button button-secondary" type="button">ESCOLHER POSE TRANSITÓRIA</button>
+              <span id="transition-image-label" class="asset-label">Nenhuma imagem escolhida</span>
+            </div>
+            <button id="save-transition" class="button button-add field-full" type="button" disabled>＋ ADICIONAR AÇÃO DE TRANSIÇÃO</button>
+          </div>
+          <div id="transitions-list" class="action-list empty-state">Nenhuma ação de transição cadastrada.</div>
+        </section>
+
+        <section class="panel-section">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">03 · COMBATE</p>
+              <h2>Ações de ataque</h2>
+            </div>
+            <span id="attack-count" class="count">0</span>
+          </div>
+          <p class="muted">O token troca para a pose de ataque e, ao completar 4 segundos, retorna automaticamente à pose correspondente à arma.</p>
+          <div class="form-grid">
+            <label class="field field-full">
+              <span>Nome do ataque</span>
+              <input id="attack-name" maxlength="48" placeholder="Ex.: Disparar pistola" autocomplete="off" />
+            </label>
+            <label class="field field-full">
+              <span>Arma / estado de origem</span>
+              <select id="attack-state"><option value="">Adicione um estado primeiro</option></select>
+            </label>
+            <div class="asset-row field-full">
+              <button id="choose-attack-image" class="button button-secondary" type="button">ESCOLHER POSE DE ATAQUE</button>
+              <span id="attack-image-label" class="asset-label">Nenhuma imagem escolhida</span>
+            </div>
+            <button id="save-attack" class="button button-add field-full" type="button" disabled>＋ ADICIONAR AÇÃO DE ATAQUE</button>
+          </div>
+          <div id="attacks-list" class="action-list empty-state">Nenhum ataque cadastrado.</div>
+        </section>
+
+        <section class="panel-section play-section">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">04 · EXECUTAR</p>
+              <h2>Ações disponíveis</h2>
+            </div>
+            <span id="available-count" class="count">0</span>
+          </div>
+          <p class="muted">Só aparecem ações compatíveis com o estado atual do personagem.</p>
+          <div id="available-actions" class="available-actions empty-state">Configure estados e ações para começar.</div>
+        </section>
+
+        <p id="permission-note" class="permission-note is-hidden">A configuração de estados e ações é restrita ao Mestre. As ações podem ser executadas por jogadores com permissão para atualizar personagens.</p>
+      </section>
+
+      <footer class="footer">
+        <span id="status" role="status" aria-live="polite">Aguardando conexão com Owlbear Rodeo…</span>
+        <span class="duration-note">POSE TRANSITÓRIA · 4000 ms</span>
+      </footer>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
