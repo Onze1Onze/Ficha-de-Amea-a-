@@ -157,10 +157,32 @@ export function compareClaims(a, b) {
 
 export function applyImageToItem(item, asset) {
   const nextImage = normalizeImageAsset(asset);
-  if (!item || !nextImage) throw new TypeError("Imagem inválida para aplicar ao token.");
+  if (!item || !nextImage || !item.image) throw new TypeError("Imagem inválida para aplicar ao token.");
 
-  // Mantém escala, rotação, posição e identidade do item. A imagem passa a usar
-  // as dimensões originais do recurso escolhido na biblioteca do Owlbear.
+  const currentImage = normalizeImageAsset(item.image);
+  const currentScale = item.scale;
+  const currentExtent = currentImage?.height ?? currentImage?.width;
+  const nextExtent = nextImage.height ?? nextImage.width;
+
+  // Mantém a altura visual do token em imagens com resoluções diferentes.
+  // O fator uniforme preserva a proporção da nova imagem.
+  if (
+    currentScale &&
+    Number.isFinite(currentScale.x) &&
+    Number.isFinite(currentScale.y) &&
+    Number.isFinite(currentExtent) &&
+    Number.isFinite(nextExtent) &&
+    currentExtent > 0 &&
+    nextExtent > 0
+  ) {
+    const factor = currentExtent / nextExtent;
+    item.scale = {
+      ...currentScale,
+      x: currentScale.x * factor,
+      y: currentScale.y * factor,
+    };
+  }
+
   item.image.url = nextImage.url;
   item.image.mime = nextImage.mime;
   if (Number.isFinite(nextImage.width)) item.image.width = nextImage.width;

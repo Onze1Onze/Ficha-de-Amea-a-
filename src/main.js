@@ -9,6 +9,7 @@ import {
   getState,
   getCurrentStateId,
   getAvailableActions,
+  canStartAction,
   applyImageToItem,
 } from "./engine.js";
 
@@ -100,7 +101,7 @@ function updateAdminControls() {
   for (const element of document.querySelectorAll(
     "#state-name, #choose-state-image, #save-state, #transition-name, #transition-from, #transition-to, #choose-transition-image, #save-transition, #attack-name, #attack-state, #choose-attack-image, #save-attack"
   )) {
-    element.disabled = !isGM || !connected;
+    element.disabled = !isGM || !connected || Boolean(boundToken?.metadata?.[TRANSITION_KEY]);
   }
   permissionNote.classList.toggle("is-hidden", isGM);
   $("#save-state").disabled = !isGM || !connected || !stateImageDraft;
@@ -131,7 +132,7 @@ function renderStates() {
     const labels = [];
     if (state.id === config.idleStateId) labels.push("Estado inicial");
     if (state.id === currentStateId()) labels.push("Estado atual");
-    detail.textContent = labels.join(" · ") || "Aparência permanente";
+    detail.textContent = labels.join(" · ");
     main.append(title, detail);
 
     const controls = document.createElement("div");
@@ -170,7 +171,7 @@ function renderActionsList(listSelector, actions, kind) {
     const detail = document.createElement("small");
     const from = action.fromStateId === "*" ? "Qualquer estado" : stateName(action.fromStateId);
     const to = stateName(action.toStateId);
-    detail.textContent = `${from} → ${to} · pose de 4 s`;
+    detail.textContent = `${from} → ${to}`;
     main.append(title, detail);
     const remove = makeButton("REMOVER", "button-danger", () => void deleteAction(action.id));
     remove.disabled = !isGM || Boolean(boundToken?.metadata?.[TRANSITION_KEY]);
@@ -181,7 +182,10 @@ function renderActionsList(listSelector, actions, kind) {
 
 function renderAvailableActions() {
   const container = $("#available-actions");
-  const currentActions = getAvailableActions(config, runtime, boundToken?.metadata?.[TRANSITION_KEY]);
+  const eligibleActions = getAvailableActions(config, runtime, boundToken?.metadata?.[TRANSITION_KEY]);
+  const currentActions = eligibleActions.filter((action) =>
+    canStartAction({ token: boundToken, config, runtime, action })
+  );
   $("#available-count").textContent = String(currentActions.length);
   container.replaceChildren();
 
@@ -197,7 +201,9 @@ function renderAvailableActions() {
   }
   if (!currentActions.length) {
     container.className = "available-actions empty-state";
-    container.textContent = "Nenhuma ação configurada para este estado.";
+    container.textContent = eligibleActions.length
+      ? "Token fora do estado esperado ou indisponível."
+      : "Nenhuma ação para este estado.";
     return;
   }
 
@@ -209,9 +215,7 @@ function renderAvailableActions() {
     button.disabled = actionBusy || !canUpdateCharacters;
     const title = document.createElement("span");
     title.textContent = action.name;
-    const subtitle = document.createElement("small");
-    subtitle.textContent = action.kind === "attack" ? "ATAQUE · RETORNA À ARMA" : `TRANSIÇÃO · ${stateName(action.toStateId)}`;
-    button.append(title, subtitle);
+    button.append(title);
     button.addEventListener("click", () => void performAction(action));
     container.append(button);
   }
@@ -229,7 +233,7 @@ function renderPanel() {
 
   targetNameNode.textContent = boundToken.name || `Personagem ${boundToken.id.slice(0, 7)}`;
   targetLayerNode.textContent = boundToken.layer || "TOKEN";
-  targetDescriptionNode.textContent = "Este token está vinculado. Todas as ações alteram sua imagem sem recriar o item da cena.";
+  targetDescriptionNode.textContent = "Token vinculado.";
   workspace.classList.remove("is-hidden");
 
   const state = getState(config, currentStateId());
@@ -313,6 +317,7 @@ async function writeTokenData(mutator) {
     (drafts) => {
       for (const item of drafts) {
         if (item.id !== boundTokenId) continue;
+        if (item.metadata?.[TRANSITION_KEY]) throw new Error("Aguarde a ação terminar.");
         const oldConfig = normalizeConfig(item.metadata?.[CONFIG_KEY]);
         const oldRuntime = item.metadata?.[RUNTIME_KEY] ?? { stateId: oldConfig.idleStateId };
         const result = mutator(item, oldConfig, oldRuntime);

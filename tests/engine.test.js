@@ -103,18 +103,20 @@ test("normaliza configurações e descarta ações com estados inexistentes", ()
   assert.equal(cleaned.actions.length, 0);
 });
 
-test("trocar a imagem preserva escala e usa as dimensões do novo recurso", () => {
+test("trocar a imagem preserva tamanho aparente, rotação e posição", () => {
   const item = {
     image: { url: "old.png", mime: "image/png", width: 100, height: 200 },
     scale: { x: 2, y: 3 },
     rotation: 45,
     position: { x: 120, y: 240 },
   };
-  applyImageToItem(item, image("new.png", 200, 100));
+  applyImageToItem(item, image("new.png", 200, 400));
   assert.equal(item.image.url, "new.png");
-  assert.deepEqual(item.scale, { x: 2, y: 3 });
+  assert.deepEqual(item.scale, { x: 1, y: 1.5 });
   assert.equal(item.image.width, 200);
-  assert.equal(item.image.height, 100);
+  assert.equal(item.image.height, 400);
+  assert.equal(item.image.width * item.scale.x, 200);
+  assert.equal(item.image.height * item.scale.y, 600);
   assert.equal(item.rotation, 45);
   assert.deepEqual(item.position, { x: 120, y: 240 });
 });
