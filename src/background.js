@@ -63,7 +63,6 @@ async function acquireLease(tokenId, claimId) {
   if (current && current.claimId !== claimId && current.expiresAt > Date.now()) return null;
 
   await OBR.scene.setMetadata({
-    ...metadata,
     [key]: { claimId, expiresAt: Date.now() + LEASE_TTL_MS },
   });
   await sleep(120);
@@ -76,9 +75,8 @@ async function releaseLease(key, claimId) {
   try {
     const metadata = await OBR.scene.getMetadata();
     if (metadata?.[key]?.claimId !== claimId) return;
-    const next = { ...metadata };
-    delete next[key];
-    await OBR.scene.setMetadata(next);
+    // setMetadata mescla valores; expira a concessão explicitamente em vez de omitir a chave.
+    await OBR.scene.setMetadata({ [key]: { claimId: "", expiresAt: 0 } });
   } catch (error) {
     console.warn("Token Dinâmico: a concessão temporária expirará automaticamente", error);
   }
